@@ -9,10 +9,14 @@ const BULAN_ID = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agus
 const BULAN_SHORT = ["Jan","Feb","Mar","Apr","Mei","Jun","Jul","Agu","Sep","Okt","Nov","Des"];
 const BULAN_EN = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const BULAN_EN_SHORT = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-const HARI_SHORT = { id: ["Min","Sen","Sel","Rab","Kam","Jum","Sab"], en: ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"] };
+const BULAN_MS = ["Januari","Februari","Mac","April","Mei","Jun","Julai","Ogos","September","Oktober","November","Disember"];
+const BULAN_MS_SHORT = ["Jan","Feb","Mac","Apr","Mei","Jun","Jul","Ogo","Sep","Okt","Nov","Dis"];
+const HARI_SHORT = { id: ["Min","Sen","Sel","Rab","Kam","Jum","Sab"], en: ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"], ms: ["Ahd","Isn","Sel","Rab","Kha","Jum","Sab"] };
 
-function monthShort(m, lang) { return (lang === "en" ? BULAN_EN_SHORT : BULAN_SHORT)[m]; }
-function monthFull(m, lang) { return (lang === "en" ? BULAN_EN : BULAN_ID)[m]; }
+// Picks the text for the current language (id | en | ms). Falls back to English when Malay is not given.
+function pick(lang, id, en, ms) { return lang === "en" ? en : lang === "ms" ? (ms !== undefined ? ms : en) : id; }
+function monthShort(m, lang) { return (lang === "en" ? BULAN_EN_SHORT : lang === "ms" ? BULAN_MS_SHORT : BULAN_SHORT)[m]; }
+function monthFull(m, lang) { return (lang === "en" ? BULAN_EN : lang === "ms" ? BULAN_MS : BULAN_ID)[m]; }
 function dayName(day, lang) {
   const dow = new Date(day.y, day.m, day.d).getDay();
   return HARI_SHORT[lang || "id"][dow];
@@ -246,7 +250,7 @@ const SOS_ROSTER = [
    Until that's set, everything falls back to browser localStorage — fine for
    solo testing on one device, but NOT shared across guards' phones. */
 
-export const APP_VERSION = "1.1.4";
+export const APP_VERSION = "1.2.0";
 // Phase 1 = guard database + documents only. Guard log-in/out, shift roster and
 // timesheet printing stay in the code but are hidden from guards and Danru;
 // only the Manager (PIN-protected link on the login page) can reach the timesheet side.
@@ -264,16 +268,16 @@ function addMonths(isoDate, n) {
 // KTA Satpam, Gada training, plus employer-side contract and BPJS records).
 // validMonths: validity counted from the issue date (SKCK = 6 months per Iggy).
 const DOC_REQUIREMENTS = [
-  { key: "photo", id: "Pas foto", en: "Passport photo", special: "photo" },
-  { key: "ktp", id: "KTP", en: "KTP (national ID)", number: true },
-  { key: "ijazah", id: "Ijazah (min. SMA/sederajat)", en: "Diploma (min. senior high)" },
-  { key: "skck", id: "SKCK (berlaku 6 bulan)", en: "Police clearance SKCK (valid 6 months)", dated: true, validMonths: 6, number: true },
-  { key: "mcu", id: "MCU / Surat sehat jasmani & rohani", en: "MCU / medical fitness (physical & mental)", dated: true, validMonths: 12 },
-  { key: "gada", id: "Sertifikat Gada (Pratama/Madya/Utama)", en: "Gada certificate (Pratama/Madya/Utama)", dated: true, number: true, hasLevel: true },
-  { key: "kta", id: "KTA Satpam", en: "KTA Satpam (guard member card)", dated: true, number: true },
-  { key: "kontrak", id: "Kontrak kerja", en: "Employment contract" },
-  { key: "bpjskes", id: "BPJS Kesehatan", en: "BPJS Kesehatan", number: true },
-  { key: "bpjstk", id: "BPJS Ketenagakerjaan", en: "BPJS Ketenagakerjaan", number: true },
+  { key: "photo", id: "Pas foto", en: "Passport photo", ms: "Gambar pasport", special: "photo" },
+  { key: "ktp", id: "KTP", en: "KTP (national ID)", ms: "KTP (kad pengenalan)", number: true },
+  { key: "ijazah", id: "Ijazah (min. SMA/sederajat)", en: "Diploma (min. senior high)", ms: "Diploma (min. sekolah menengah atas)" },
+  { key: "skck", id: "SKCK (berlaku 6 bulan)", en: "Police clearance SKCK (valid 6 months)", ms: "Pelepasan polis SKCK (sah 6 bulan)", dated: true, validMonths: 6, number: true },
+  { key: "mcu", id: "MCU / Surat sehat jasmani & rohani", en: "MCU / medical fitness (physical & mental)", ms: "MCU / kesihatan (fizikal & mental)", dated: true, validMonths: 12 },
+  { key: "gada", id: "Sertifikat Gada (Pratama/Madya/Utama)", en: "Gada certificate (Pratama/Madya/Utama)", ms: "Sijil Gada (Pratama/Madya/Utama)", dated: true, number: true, hasLevel: true },
+  { key: "kta", id: "KTA Satpam", en: "KTA Satpam (guard member card)", ms: "KTA Satpam (kad ahli pengawal)", dated: true, number: true },
+  { key: "kontrak", id: "Kontrak kerja", en: "Employment contract", ms: "Kontrak pekerjaan" },
+  { key: "bpjskes", id: "BPJS Kesehatan", en: "BPJS Kesehatan", ms: "BPJS Kesehatan", number: true },
+  { key: "bpjstk", id: "BPJS Ketenagakerjaan", en: "BPJS Ketenagakerjaan", ms: "BPJS Ketenagakerjaan", number: true },
 ];
 
 function docValidUntil(req, d) {
@@ -301,9 +305,9 @@ function guardDocIssues(guard) {
 
 async function exportDocsChecklist(roster, lang) {
   const XLSX = await loadXLSX();
-  const L = (a, b) => (lang === "en" ? b : a);
-  const head = [L("Nama", "Name"), "NPK", L("Perusahaan", "Company"), ...DOC_REQUIREMENTS.map((r) => (lang === "en" ? r.en : r.id)), L("Kurang", "Missing/Issues")];
-  const word = { ok: "OK", missing: L("KURANG", "MISSING"), expired: L("KADALUARSA", "EXPIRED"), nodate: L("TGL KOSONG", "NO DATE") };
+  const L = (a, b, c) => pick(lang, a, b, c);
+  const head = [L("Nama", "Name", "Nama"), "NPK", L("Perusahaan", "Company", "Syarikat"), ...DOC_REQUIREMENTS.map((r) => pick(lang, r.id, r.en, r.ms)), L("Kurang", "Missing/Issues", "Kurang/Isu")];
+  const word = { ok: "OK", missing: L("KURANG", "MISSING", "KURANG"), expired: L("KADALUARSA", "EXPIRED", "TAMAT TEMPOH"), nodate: L("TGL KOSONG", "NO DATE", "TIADA TARIKH") };
   const rows = roster.map((g) => {
     const st = DOC_REQUIREMENTS.map((r) => docStatus(g, r));
     return [g.name, g.npk || "", g.company || "", ...st.map((x) => word[x]), st.filter((x) => x !== "ok").length];
@@ -541,16 +545,16 @@ function formatFileSize(bytes) {
 }
 
 /* ---------- design tokens ---------- */
-// Ink navy + badge amber, paper background — reads like an official duty ledger, not a generic SaaS panel.
+// Shell-style palette: Forest Green, Shell Yellow, Solid Black, White, Shell Grey (see index.css).
 const COLORS = {
-  paper: "#F7F5F0",
-  ink: "#182437",
-  inkSoft: "#4B5568",
-  line: "#D8D3C6",
-  amber: "#C97A2B",
-  amberDeep: "#9C5A18",
-  green: "#3A6B4A",
-  red: "#A63D3D",
+  paper: "#FFFFFF",
+  ink: "#231F20",
+  inkSoft: "#6E6B6C",
+  line: "#DCDCDC",
+  amber: "#FFC600",
+  amberDeep: "#231F20",
+  green: "#44A276",
+  red: "#B3261E",
   card: "#FFFFFF",
 };
 
@@ -901,12 +905,183 @@ const STRINGS = {
     viewIdCard: "View ID Card",
     shiftLabel: "Shift",
   },
+  ms: {
+    loginSubtitle: "Pilih nama anda untuk menghantar kehadiran hari ini",
+    noPersonnel: "Belum ada anggota ditambah. Minta pengurus anda menetapkan senarai anggota.",
+    managerAccess: "Akses Pengurus",
+    managerPin: "PIN Pengurus",
+    enterPin: "Masukkan PIN",
+    incorrectPin: "PIN salah",
+    unlock: "Buka",
+    back: "Kembali",
+    pinHint: "Lupa PIN? Minta daripada Pengurus anda — boleh ditukar di Pengurus → Tetapan.",
+    switch: "Tukar",
+    attendancePeriod: "Tempoh Kehadiran",
+    saving: "Menyimpan…",
+    today: "HARI INI",
+    saved: "Disimpan",
+    undo: "Buat asal",
+    keteranganPlaceholder: "Nota lokasi / lain-lain (pilihan)",
+    manager: "Pengurus",
+    exit: "Keluar",
+    tabPrint: "Cetak / Sahkan",
+    tabRoster: "Senarai Anggota",
+    tabSettings: "Tetapan",
+    selectPersonnel: "Pilih anggota",
+    print: "Cetak",
+    noPersonnelPrintHint: "Tambah anggota di Senarai Anggota untuk menjana helaian yang boleh dicetak.",
+    importTitle: "Import daripada jadual SOS",
+    importButton: "Import 24 anggota",
+    importAdded: (n) => `${n} ditambah daripada jadual SOS.`,
+    importNone: "Semua orang dalam jadual SOS sudah ada dalam senarai.",
+    addManualTitle: "Tambah anggota secara manual",
+    fieldName: "Nama",
+    fieldNpk: "NPK",
+    fieldJabatan: "Jawatan",
+    fieldProjek: "Projek",
+    fieldCompany: "Syarikat Keselamatan (Vendor)",
+    reminderLoginTitle: "Masa untuk Log Masuk",
+    reminderLoginBody: (time) => `Syif anda bermula pada ${time}. Jangan lupa Log Masuk.`,
+    reminderLogoutTitle: "Masa untuk Log Keluar",
+    reminderLogoutBody: (time) => `Syif anda tamat pada ${time}. Jangan lupa Log Keluar.`,
+    fieldPhone: "Telefon",
+    fieldRegu: "Regu (pilihan)",
+    add: "Tambah",
+    noPersonnelYet: "Belum ada anggota.",
+    formTitleLabel: "Tajuk borang (pengepala cetakan)",
+    subLabelLabel: "Sub-label (pilihan, cth. baris syarikat/kumpulan)",
+    saveSettings: "Simpan tetapan",
+    loading: "Memuatkan senarai…",
+    locating: "Mencari lokasi…",
+    locationOn: "Lokasi aktif",
+    locationOff: "Lokasi tidak tersedia",
+    locationUnsupported: "Peranti tidak menyokong lokasi",
+    locationLog: "Log Lokasi",
+    viewMap: "Lihat peta",
+    noLocationYet: "Belum ada data lokasi untuk tempoh ini.",
+    tagged: "Lokasi ditandakan",
+    danruAccess: "Akses Danru",
+    danruPinTitle: "PIN Danru",
+    danruPinLabel: "PIN Danru (akses senarai anggota)",
+    danruHeader: "Danru — Anggota",
+    halfShiftLabel: "Separuh Syif",
+    exportExcel: "Muat turun Excel (semua data)",
+    exportRosterExcel: "Muat turun Excel (anggota)",
+    printPdfHint: "Untuk PDF: klik Cetak, kemudian pilih \"Save as PDF\" sebagai destinasi cetakan pelayar.",
+    appOnlyHint: "Nota: helaian cetakan/PDF hanya untuk pengesahan. Buat semua pembetulan dalam aplikasi, bukan pada cetakan.",
+    printModeOne: "Seorang",
+    printModeAll: "Semua (1 sehelai)",
+    tabSchedule: "Jadual Syif",
+    scheduleTitle: "Tetapkan syif setiap pengawal mengikut tarikh. Ketik sel untuk menukar.",
+    duplicateShiftConfirm: (name, day, oldCode, newCode) => `${name} pada ${day} sudah ditetapkan syif "${oldCode}". Gantikan dengan "${newCode}"?`,
+    duplicateEntryConfirm: (oldCode, newCode) => `Hari ini sudah direkodkan syif "${oldCode}". Gantikan dengan "${newCode}"?`,
+    totalGuards: (n) => `${n} anggota berdaftar`,
+    certificatesTitle: "Sijil / Dokumen",
+    noCertificates: "Belum ada sijil.",
+    addCertificate: "Tambah sijil",
+    certName: "Nama sijil",
+    certNumber: "Nombor",
+    certIssued: "Tarikh dikeluarkan",
+    certExpiry: "Tarikh tamat tempoh",
+    certLink: "Pautan fail (OneDrive/Drive)",
+    certNotes: "Nota",
+    certExpired: "tamat tempoh",
+    certExpiringSoon: "hampir tamat tempoh",
+    openLink: "Buka fail",
+    bioTitle: "Butiran Peribadi",
+    basicInfoTitle: "Maklumat Asas",
+    fieldKtp: "No. Kad Pengenalan (KTP)",
+    fieldBirthPlace: "Tempat Lahir",
+    fieldBirthDate: "Tarikh Lahir",
+    fieldAddress: "Alamat",
+    fieldBloodType: "Jenis Darah",
+    fieldEmergencyName: "Hubungan Kecemasan (Nama)",
+    fieldEmergencyPhone: "Hubungan Kecemasan (Telefon)",
+    guardPinTitle: "Masukkan PIN anda",
+    guardPinHint: "Lupa PIN? Tanya Danru atau Pengurus anda.",
+    fieldGuardPin: "PIN Peribadi (ditetapkan oleh Danru/Pengurus)",
+    noPinSet: "(belum ditetapkan)",
+    welcomeBack: (name) => `Selamat kembali, ${name}`,
+    continueAs: "Teruskan",
+    notYou: "Bukan anda?",
+    resetDeviceTitle: "Set semula peranti ini",
+    resetDeviceHint: "Memerlukan PIN Danru atau Pengurus",
+    deviceBoundHint: "Peranti ini dikunci kepada anggota di atas.",
+    swipeHint: "← Leret untuk lihat lebih banyak tarikh →",
+    todayLabel: "Hari ini",
+    chooseShiftPrompt: "Pilih syif anda untuk hari ini",
+    changeShift: "Tukar syif",
+    logIn: "LOG MASUK",
+    logOut: "LOG KELUAR",
+    loggedInAt: (time) => `Log masuk pada ${time}`,
+    allDoneToday: "Semua selesai untuk hari ini",
+    doneSummary: (start, end, hrs) => `${start} – ${end} (${hrs}j)`,
+    offToday: "Hari ini: CUTI",
+    resetDeviceLink: "Bukan anda? (memerlukan PIN Danru/Pengurus)",
+    notesLabel: "Nota (pilihan)",
+    notesPlaceholder: "Tulis sebarang nota di sini...",
+    oneLoginHint: "Anda hanya boleh Log Masuk sekali sehari.",
+    deleteConfirmTitle: (name) => `Padam ${name}?`,
+    deleteConfirmBody: "Orang ini akan dipindahkan ke Anggota Dipadam, bukan dibuang secara kekal.",
+    deleteReasonLabel: "Sebab",
+    reasonSelect: "Pilih sebab",
+    reasonResigned: "Meletak jawatan",
+    reasonTerminated: "Diberhentikan",
+    reasonOther: "Lain-lain",
+    reasonOtherPlaceholder: "Tulis sebab...",
+    cancel: "Batal",
+    continueBtn: "Teruskan",
+    confirmDeleteBtn: "Padam Anggota",
+    deletePinPrompt: "Masukkan PIN Pengurus untuk mengesahkan",
+    deletedSection: "Anggota Dipadam",
+    noDeletedGuards: "Belum ada anggota dipadam.",
+    restoreGuardBtn: "Pulihkan",
+    deletedOn: (date) => `Dipadam ${date}`,
+    deletedByLabel: (role) => `oleh ${role}`,
+    siteLatLabel: "Latitud Tapak",
+    siteLngLabel: "Longitud Tapak",
+    geofenceRadiusLabel: "Radius Geopagar (meter)",
+    useCurrentLocation: "Guna lokasi semasa",
+    gettingLocation: "Mendapatkan lokasi…",
+    withinRadius: (m) => `Dalam radius (${m}m)`,
+    outsideRadius: (m) => `Luar radius (${m}m)`,
+    consentTitle: "Pendaftaran Peranti",
+    consentBody: "Apabila anda Log Masuk dan Log Keluar, masa dan lokasi anda (dalam kawasan tapak kerja) akan direkodkan untuk tujuan pengesahan kehadiran.",
+    consentContinue: "Faham, Teruskan",
+    photoLabel: "Gambar",
+    uploadPhoto: "Muat Naik Gambar",
+    changePhoto: "Tukar Gambar",
+    noPhoto: "Belum ada gambar",
+    fileTooLarge: "Fail mestilah kurang daripada 2 MB.",
+    uploading: "Memuat naik…",
+    uploadFile: "Muat Naik Fail",
+    fileUploaded: (name) => `${name}`,
+    downloadFile: "Muat turun",
+    removeFile: "Buang Fail",
+    employmentTitle: "Butiran Pekerjaan",
+    fieldDateOfJoining: "Tarikh Mula Bekerja",
+    fieldExperience: "Pengalaman",
+    experiencePlaceholder: "Pengalaman kerja terdahulu...",
+    skckTitle: "Pelepasan Polis (SKCK)",
+    skckNumber: "Nombor SKCK",
+    skckIssued: "Tarikh Dikeluarkan",
+    skckExpiry: "Tarikh Tamat Tempoh",
+    todayShiftTitle: "Syif Hari Ini",
+    noShiftToday: "Tidak dijadualkan",
+    warningsTitle: "Amaran",
+    noWarnings: "Belum ada amaran.",
+    addWarning: "Tambah Amaran",
+    warningReason: "Sebab amaran",
+    warningDate: "Tarikh",
+    viewIdCard: "Lihat Kad Pengenalan",
+    shiftLabel: "Syif",
+  },
 };
 
 function useT() {
   const { lang } = useContext(LangContext);
   return (key, ...args) => {
-    const v = STRINGS[lang][key];
+    const v = (STRINGS[lang] && STRINGS[lang][key] !== undefined) ? STRINGS[lang][key] : STRINGS.en[key];
     return typeof v === "function" ? v(...args) : v;
   };
 }
@@ -914,24 +1089,24 @@ function useT() {
 function LangToggle() {
   const { lang, setLang } = useContext(LangContext);
   return (
-    <div className="no-print fixed top-1.5 right-3 z-50 flex flex-col items-end gap-0.5">
-      <span style={{ color: COLORS.inkSoft }} className="text-[10px] leading-none opacity-70 select-none">
-        v{APP_VERSION}
-      </span>
-      <div className="flex rounded-lg overflow-hidden border" style={{ borderColor: COLORS.line, background: COLORS.card }}>
-        {["id", "en"].map((l) => (
-          <button
-            key={l}
-            onClick={() => setLang(l)}
-            style={{ background: lang === l ? COLORS.ink : "transparent", color: lang === l ? "#fff" : COLORS.inkSoft }}
-            className="px-2.5 py-1 text-[11px] font-semibold uppercase"
-          >
-            {l}
+    <div className="no-print eco-header">
+      <span className="eco-version">v{APP_VERSION}</span>
+      <div className="eco-lang" role="group" aria-label="Language">
+        {["en", "id", "ms"].map((l) => (
+          <button key={l} onClick={() => setLang(l)} className={lang === l ? "on" : ""} aria-pressed={lang === l}>
+            {l.toUpperCase()}
           </button>
         ))}
       </div>
     </div>
   );
+}
+
+// 5 x 5 Shell-grey dot grid: used for the corner watermark and for empty states.
+function DotGrid({ size = 56, className = "" }) {
+  const dots = [];
+  for (let r = 0; r < 5; r++) for (let c = 0; c < 5; c++) dots.push(<circle key={r + "-" + c} cx={6 + c * 12} cy={6 + r * 12} r="3.2" fill="#AAAAAA" />);
+  return <svg className={className} width={size} height={size} viewBox="0 0 60 60" aria-hidden="true">{dots}</svg>;
 }
 
 /* ---------- root component ---------- */
@@ -1111,7 +1286,7 @@ export default function SecurityTimesheetApp() {
     return (
       <div style={{ background: COLORS.paper, minHeight: "100vh" }} className="flex items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <Shield className="animate-pulse" size={32} color={COLORS.amber} />
+          <DotGrid className="animate-pulse" size={56} />
           <p style={{ color: COLORS.inkSoft }} className="text-sm">{STRINGS[lang].loading}</p>
         </div>
       </div>
@@ -1120,7 +1295,8 @@ export default function SecurityTimesheetApp() {
 
   return (
     <LangContext.Provider value={{ lang, setLang }}>
-    <div style={{ background: COLORS.paper, minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <div className="eco-app" style={{ minHeight: "100vh" }}>
+      <div className="eco-dots no-print" aria-hidden="true" />
       <style>{`
         @page { size: A4; margin: 12mm; }
         @media print {
@@ -1311,16 +1487,14 @@ function LoginScreen({ roster, onPickGuard, onManager, onDanru }) {
   const t = useT();
   const showGuards = !PHASE_DB;
   return (
-    <div className="min-h-screen flex flex-col items-center px-4 py-10">
-      <div className="flex flex-col items-center gap-2 mb-8">
-        <div style={{ background: COLORS.ink }} className="w-14 h-14 rounded-full flex items-center justify-center">
-          <Shield color={COLORS.amber} size={26} />
-        </div>
-        <h1 style={{ color: COLORS.ink }} className="text-xl font-semibold tracking-tight">EcoOils Security</h1>
-        <p style={{ color: COLORS.inkSoft }} className="text-sm">{PHASE_DB ? t("danruHeader") : t("loginSubtitle")}</p>
+    <div className="min-h-screen flex flex-col px-4 pb-10 max-w-[780px] mx-auto w-full">
+      <div className="mb-6">
+        <h1 className="eco-title">EcoOils Security</h1>
+        <div className="eco-rule" />
+        <p style={{ color: COLORS.inkSoft }} className="text-sm mt-4">{PHASE_DB ? t("danruHeader") : t("loginSubtitle")}</p>
         {roster.length > 0 && (
-          <p style={{ color: COLORS.amberDeep }} className="text-xs font-medium flex items-center gap-1 mt-1">
-            <Users size={12} /> {t("totalGuards", roster.length)}
+          <p style={{ color: COLORS.ink }} className="text-xs font-medium flex items-center gap-1.5 mt-2">
+            <Users size={13} /> {t("totalGuards", roster.length)}
           </p>
         )}
       </div>
@@ -1347,20 +1521,20 @@ function LoginScreen({ roster, onPickGuard, onManager, onDanru }) {
         ))}
       </div>}
 
-      <div className="mt-10 flex items-center gap-4">
+      <div className="mt-6 flex flex-col sm:flex-row gap-3 w-full max-w-sm">
         <button
           onClick={onDanru}
-          style={{ color: COLORS.inkSoft }}
-          className="text-xs flex items-center gap-1.5 hover:opacity-70"
+          style={{ background: COLORS.green, color: COLORS.ink }}
+          className="rounded-lg px-4 font-bold text-sm flex items-center justify-center gap-2 min-h-[48px] flex-1"
         >
-          <Lock size={12} /> {t("danruAccess")}
+          <Lock size={14} /> {t("danruAccess")}
         </button>
         <button
           onClick={onManager}
-          style={{ color: COLORS.inkSoft }}
-          className="text-xs flex items-center gap-1.5 hover:opacity-70"
+          style={{ background: COLORS.card, borderColor: COLORS.line, color: COLORS.ink }}
+          className="border rounded-lg px-4 font-medium text-sm flex items-center justify-center gap-2 min-h-[48px] flex-1"
         >
-          <Lock size={12} /> {t("managerAccess")}
+          <Lock size={14} /> {t("managerAccess")}
         </button>
       </div>
     </div>
@@ -1383,8 +1557,8 @@ function ConsentGate({ onContinue }) {
         <p style={{ color: COLORS.inkSoft }} className="text-sm text-center">{t("consentBody")}</p>
         <button
           onClick={onContinue}
-          style={{ background: COLORS.ink }}
-          className="text-white rounded-lg py-2.5 text-sm font-medium min-h-[44px]"
+          style={{ background: COLORS.green, color: COLORS.ink }}
+          className="font-bold rounded-lg py-2.5 text-sm font-medium min-h-[44px]"
         >
           {t("consentContinue")}
         </button>
@@ -1416,7 +1590,7 @@ function PinGate({ title, pinInput, setPinInput, pinError, onBack, onSubmit, hid
           autoFocus
         />
         {pinError && <p style={{ color: COLORS.red }} className="text-xs text-center">{pinError}</p>}
-        <button onClick={onSubmit} style={{ background: COLORS.ink }} className="text-white rounded-lg py-2 text-sm font-medium">
+        <button onClick={onSubmit} style={{ background: COLORS.green, color: COLORS.ink }} className="font-bold rounded-lg py-2 text-sm font-medium">
           {t("unlock")}
         </button>
         <button onClick={onBack} style={{ color: COLORS.inkSoft }} className="text-xs flex items-center justify-center gap-1">
@@ -1615,8 +1789,8 @@ function GuardView({ guard, entries, onSaveEntry, onLogout, saving, boundDevice,
               </p>
               <button
                 onClick={logIn}
-                style={{ background: COLORS.green }}
-                className="text-white rounded-xl px-8 py-4 text-lg font-bold w-full min-h-[56px]"
+                style={{ background: COLORS.green, color: COLORS.ink }}
+                className="font-bold rounded-xl px-8 py-4 text-lg font-bold w-full min-h-[56px]"
               >
                 {t("logIn")}
               </button>
@@ -1634,7 +1808,7 @@ function GuardView({ guard, entries, onSaveEntry, onLogout, saving, boundDevice,
               </p>
               <button
                 onClick={logOut}
-                style={{ background: COLORS.red }}
+                style={{ background: COLORS.ink }}
                 className="text-white rounded-xl px-8 py-4 text-lg font-bold w-full min-h-[56px]"
               >
                 {t("logOut")}
@@ -1795,28 +1969,24 @@ function DanruView({ roster, activeRoster, entries, settings, schedule, onAddGua
   const [tab, setTab] = useState("roster"); // roster | docs
   const { lang } = useContext(LangContext);
   return (
-    <div className="min-h-screen px-4 py-4 max-w-4xl mx-auto flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h1 style={{ color: COLORS.ink }} className="text-lg font-semibold flex items-center gap-2">
-          <UserPlus size={18} color={COLORS.amber} /> {t("danruHeader")}
-        </h1>
-        <div className="flex items-center gap-3">
+    <div className="min-h-screen px-4 py-4 max-w-[780px] mx-auto flex flex-col gap-4">
+      <div>
+      <div className="flex items-end justify-between gap-3">
+        <h1 className="eco-title">{t("danruHeader")}</h1>
+        <div className="flex items-center gap-3 pb-3">
           {saving && <span style={{ color: COLORS.inkSoft }} className="text-xs">{t("saving")}</span>}
           <button onClick={onLogout} style={{ color: COLORS.inkSoft }} className="text-xs flex items-center gap-1 p-2 -m-2"><LogOut size={14} /> {t("exit")}</button>
         </div>
       </div>
+      <div className="eco-rule" />
+      </div>
 
-      <div className="flex gap-1 no-print">
-        {[["roster", t("tabRoster")], ["docs", lang === "en" ? "Documents checklist" : "Daftar dokumen"]].map(([id, label]) => (
+      <div className="flex flex-wrap gap-x-5 no-print">
+        {[["roster", t("tabRoster")], ["docs", pick(lang, "Daftar dokumen", "Documents checklist", "Senarai semak dokumen")]].map(([id, label]) => (
           <button
             key={id}
             onClick={() => setTab(id)}
-            style={{
-              background: tab === id ? COLORS.ink : COLORS.card,
-              color: tab === id ? "#fff" : COLORS.inkSoft,
-              borderColor: COLORS.line,
-            }}
-            className="border rounded-lg px-3 py-2 text-xs font-medium min-h-[38px]"
+            className={"eco-tab" + (tab === id ? " on" : "")}
           >
             {label}
           </button>
@@ -1840,28 +2010,24 @@ function ManagerView({ roster, activeRoster, entries, settings, schedule, onAddG
 
   return (
     <div className="min-h-screen">
-      <div className="no-print px-4 py-4 max-w-4xl mx-auto flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <h1 style={{ color: COLORS.ink }} className="text-lg font-semibold flex items-center gap-2">
-            <Settings size={18} color={COLORS.amber} /> {t("manager")}
-          </h1>
-          <div className="flex items-center gap-3">
+      <div className="no-print px-4 py-4 max-w-[780px] mx-auto flex flex-col gap-4">
+        <div>
+        <div className="flex items-end justify-between gap-3">
+          <h1 className="eco-title">{t("manager")}</h1>
+          <div className="flex items-center gap-3 pb-3">
             {saving && <span style={{ color: COLORS.inkSoft }} className="text-xs">{t("saving")}</span>}
             <button onClick={onLogout} style={{ color: COLORS.inkSoft }} className="text-xs flex items-center gap-1 p-2 -m-2"><LogOut size={14} /> {t("exit")}</button>
           </div>
         </div>
+        <div className="eco-rule" />
+        </div>
 
-        <div className="flex gap-1 flex-wrap">
+        <div className="flex flex-wrap gap-x-5">
           {[["print", t("tabPrint")], ["roster", t("tabRoster")], ["schedule", t("tabSchedule")], ["settings", t("tabSettings")]].map(([id, label]) => (
             <button
               key={id}
               onClick={() => setTab(id)}
-              style={{
-                background: tab === id ? COLORS.ink : COLORS.card,
-                color: tab === id ? "#fff" : COLORS.inkSoft,
-                borderColor: COLORS.line,
-              }}
-              className="border rounded-lg px-3 py-2 text-xs font-medium min-h-[38px]"
+              className={"eco-tab" + (tab === id ? " on" : "")}
             >
               {label}
             </button>
@@ -1978,7 +2144,7 @@ function RosterTab({ roster, role, settings, schedule, onAdd, onSoftDelete, onRe
           <input placeholder={t("fieldPhone")} value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} style={{ borderColor: COLORS.line }} className="border rounded px-2 py-2 text-base sm:text-sm min-h-[42px]" />
           <input placeholder={t("fieldRegu")} value={form.regu} onChange={(e) => setForm({ ...form, regu: e.target.value })} style={{ borderColor: COLORS.line }} className="border rounded px-2 py-2 text-base sm:text-sm min-h-[42px]" />
         </div>
-        <button onClick={submit} style={{ background: COLORS.ink }} className="text-white rounded-lg py-2.5 text-sm font-medium flex items-center justify-center gap-1.5 min-h-[44px]">
+        <button onClick={submit} style={{ background: COLORS.green, color: COLORS.ink }} className="font-bold rounded-lg py-2.5 text-sm font-medium flex items-center justify-center gap-1.5 min-h-[44px]">
           <Plus size={14} /> {t("add")}
         </button>
       </div>
@@ -1987,7 +2153,7 @@ function RosterTab({ roster, role, settings, schedule, onAdd, onSoftDelete, onRe
         {activeGuards.map((g) => (
           <GuardCard key={g.id} guard={g} onUpdate={onUpdate} onRequestDelete={() => setPendingDelete(g)} schedule={schedule} role={role} />
         ))}
-        {activeGuards.length === 0 && <p style={{ color: COLORS.inkSoft }} className="text-sm text-center py-4">{t("noPersonnelYet")}</p>}
+        {activeGuards.length === 0 && <div className="flex flex-col items-center gap-3 py-8"><DotGrid size={56} /><p style={{ color: COLORS.inkSoft }} className="text-sm text-center uppercase tracking-widest font-light">{t("noPersonnelYet")}</p></div>}
       </div>
 
       <div className="border-t pt-3" style={{ borderColor: COLORS.line }}>
@@ -2111,7 +2277,7 @@ function DeleteGuardModal({ guard, role, settings, onCancel, onConfirm }) {
               <button
                 onClick={handleContinue}
                 disabled={!canContinue}
-                style={{ background: COLORS.red }}
+                style={{ background: COLORS.ink }}
                 className="text-white rounded-lg py-2.5 text-sm font-medium flex-1 min-h-[44px] disabled:opacity-40"
               >
                 {role === "danru" ? t("continueBtn") : t("confirmDeleteBtn")}
@@ -2138,7 +2304,7 @@ function DeleteGuardModal({ guard, role, settings, onCancel, onConfirm }) {
               <button onClick={onCancel} style={{ borderColor: COLORS.line, color: COLORS.inkSoft }} className="border rounded-lg py-2.5 text-sm font-medium flex-1 min-h-[44px]">
                 {t("cancel")}
               </button>
-              <button onClick={handlePinSubmit} style={{ background: COLORS.red }} className="text-white rounded-lg py-2.5 text-sm font-medium flex-1 min-h-[44px]">
+              <button onClick={handlePinSubmit} style={{ background: COLORS.ink }} className="text-white rounded-lg py-2.5 text-sm font-medium flex-1 min-h-[44px]">
                 {t("confirmDeleteBtn")}
               </button>
             </div>
@@ -2310,7 +2476,7 @@ function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
       setCertBusy(true);
       const res = await uploadFileToStorage(newCertFile, `certfile:${id}`, guard.name);
       setCertBusy(false);
-      if (!res.ok) { setCertErr(res.error === "too-large" ? t("fileTooLarge") : (lang === "en" ? "Upload failed, try again." : "Unggah gagal, coba lagi.")); return; }
+      if (!res.ok) { setCertErr(res.error === "too-large" ? t("fileTooLarge") : pick(lang, "Unggah gagal, coba lagi.", "Upload failed, try again.", "Muat naik gagal, cuba lagi.")); return; }
       cert.fileName = res.fileName || newCertFile.name;
       cert.fileSize = res.size ?? newCertFile.size;
     }
@@ -2331,12 +2497,12 @@ function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
           <span style={{ color: COLORS.ink }} className="text-sm font-medium truncate">{guard.name}</span>
           <span style={{ color: COLORS.inkSoft }} className="text-xs whitespace-nowrap">{guard.jabatan}</span>
           {issues.length > 0 ? (
-            <span style={{ background: "#FDECEA", color: COLORS.red }} className="text-[10px] font-semibold rounded-full px-2 py-0.5 whitespace-nowrap">
-              {lang === "en" ? `${issues.length} missing` : `${issues.length} kurang`}
+            <span style={{ borderColor: COLORS.line, color: COLORS.ink }} className="border text-[11px] font-medium rounded-full px-2 py-0.5 whitespace-nowrap inline-flex items-center gap-1.5"><i style={{ background: COLORS.amber }} className="inline-block w-2 h-2 rounded-full" />
+              {pick(lang, `${issues.length} kurang`, `${issues.length} missing`, `${issues.length} kurang`)}
             </span>
           ) : (
-            <span style={{ background: "#E7F5EC", color: COLORS.green }} className="text-[10px] font-semibold rounded-full px-2 py-0.5 whitespace-nowrap">
-              {lang === "en" ? "Complete" : "Lengkap"}
+            <span style={{ borderColor: COLORS.line, color: COLORS.ink }} className="border text-[11px] font-medium rounded-full px-2 py-0.5 whitespace-nowrap inline-flex items-center gap-1.5"><i style={{ background: COLORS.green }} className="inline-block w-2 h-2 rounded-full" />
+              {pick(lang, "Lengkap", "Complete", "Lengkap")}
             </span>
           )}
           {(hasExpired || hasExpiringSoon) && (
@@ -2440,7 +2606,7 @@ function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
                   style={{ borderColor: COLORS.line }}
                   className="border rounded px-2 py-2 text-base sm:text-xs min-h-[40px] flex-1"
                 />
-                <button onClick={addWarning} style={{ borderColor: COLORS.red, color: COLORS.red }} className="border rounded-lg px-3 text-xs font-medium min-h-[40px] flex items-center gap-1.5 flex-shrink-0">
+                <button onClick={addWarning} style={{ borderColor: COLORS.ink, color: COLORS.ink }} className="border rounded-lg px-3 text-xs font-medium min-h-[40px] flex items-center gap-1.5 max-w-full">
                   <Plus size={13} /> {t("addWarning")}
                 </button>
               </div>
@@ -2495,7 +2661,7 @@ function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
               </label>
               <label style={{ borderColor: COLORS.line, color: COLORS.inkSoft }} className="border rounded px-2 py-2 text-xs min-h-[40px] sm:col-span-2 flex items-center gap-2 cursor-pointer">
                 <Paperclip size={13} />
-                <span className="truncate">{newCertFile ? `${newCertFile.name} (${formatFileSize(newCertFile.size)})` : (lang === "en" ? "Choose file to upload (max 2 MB)" : "Pilih file untuk diunggah (maks 2 MB)")}</span>
+                <span className="truncate">{newCertFile ? `${newCertFile.name} (${formatFileSize(newCertFile.size)})` : pick(lang, "Pilih file untuk diunggah (maks 2 MB)", "Choose file to upload (max 2 MB)", "Pilih fail untuk dimuat naik (maks 2 MB)")}</span>
                 <input type="file" className="hidden" onChange={(e) => setNewCertFile(e.target.files?.[0] || null)} />
               </label>
               <input placeholder={t("certNotes")} value={newCert.notes} onChange={(e) => setNewCert({ ...newCert, notes: e.target.value })} style={{ borderColor: COLORS.line }} className="border rounded px-2 py-2 text-base sm:text-xs min-h-[40px] sm:col-span-2" />
@@ -2513,17 +2679,17 @@ function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
 
 function MandatoryDocs({ guard, onUpdate }) {
   const { lang } = useContext(LangContext);
-  const L = (a, b) => (lang === "en" ? b : a);
+  const L = (a, b, c) => pick(lang, a, b, c);
   const docs = guard.docs || {};
   const levels = ["Gada Pratama", "Gada Madya", "Gada Utama"];
   function setDoc(key, patch) {
     onUpdate(guard.id, { docs: { ...docs, [key]: { ...(docs[key] || {}), ...patch } } });
   }
-  const badge = { ok: ["#E7F5EC", COLORS.green, L("OK", "OK")], missing: ["#FDECEA", COLORS.red, L("Kurang", "Missing")], expired: ["#FDECEA", COLORS.red, L("Kadaluarsa", "Expired")], nodate: ["#FFF4DD", COLORS.amberDeep, L("Isi tanggal", "Add date")] };
+  const badge = { ok: [COLORS.green, COLORS.ink, L("OK", "OK", "OK")], missing: [COLORS.amber, COLORS.ink, L("Kurang", "Missing", "Kurang")], expired: [COLORS.ink, COLORS.ink, L("Kadaluarsa", "Expired", "Tamat tempoh")], nodate: [COLORS.amber, COLORS.ink, L("Isi tanggal", "Add date", "Isi tarikh")] };
   return (
     <div className="border-t pt-2" style={{ borderColor: COLORS.line }}>
       <p style={{ color: COLORS.ink }} className="text-xs font-medium mb-1.5 flex items-center gap-1.5">
-        <ShieldAlert size={13} color={COLORS.amberDeep} /> {L("Dokumen wajib", "Mandatory documents")}
+        <ShieldAlert size={13} color={COLORS.amberDeep} /> {L("Dokumen wajib", "Mandatory documents", "Dokumen wajib")}
       </p>
       <div className="flex flex-col gap-2">
         {DOC_REQUIREMENTS.map((req) => {
@@ -2534,34 +2700,34 @@ function MandatoryDocs({ guard, onUpdate }) {
           return (
             <div key={req.key} style={{ borderColor: COLORS.line }} className="border rounded-lg p-2 flex flex-col gap-1.5">
               <div className="flex items-center justify-between gap-2">
-                <span style={{ color: COLORS.ink }} className="text-xs font-medium">{lang === "en" ? req.en : req.id}</span>
-                <span style={{ background: bg, color: fg }} className="text-[10px] font-semibold rounded-full px-2 py-0.5">{label}</span>
+                <span style={{ color: COLORS.ink }} className="text-xs font-medium">{pick(lang, req.id, req.en, req.ms)}</span>
+                <span style={{ borderColor: COLORS.line, color: fg }} className="border text-[11px] font-medium rounded-full px-2 py-0.5 inline-flex items-center gap-1.5 whitespace-nowrap"><i style={{ background: bg }} className="inline-block w-2 h-2 rounded-full" />{label}</span>
               </div>
               {req.special === "photo" ? (
-                <p style={{ color: COLORS.inkSoft }} className="text-[10px]">{L("Unggah di bagian foto di atas.", "Upload in the photo box above.")}</p>
+                <p style={{ color: COLORS.inkSoft }} className="text-[10px]">{L("Unggah di bagian foto di atas.", "Upload in the photo box above.", "Muat naik di kotak gambar di atas.")}</p>
               ) : (
                 <>
                   {(req.number || req.dated || req.hasLevel) && (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1">
                       {req.hasLevel && (
                         <label className="flex flex-col">
-                          <span style={{ color: COLORS.inkSoft }} className="text-[10px]">{L("Tingkat", "Level")}</span>
+                          <span style={{ color: COLORS.inkSoft }} className="text-[10px]">{L("Tingkat", "Level", "Tahap")}</span>
                           <select value={d.level || ""} onChange={(e) => setDoc(req.key, { level: e.target.value })} style={{ borderColor: COLORS.line }} className="border rounded px-2 py-2 text-base sm:text-xs min-h-[38px]">
                             <option value="">—</option>
                             {levels.map((l) => <option key={l} value={l}>{l}</option>)}
                           </select>
                         </label>
                       )}
-                      {req.number && <EditableField value={d.number || ""} onChange={(v) => setDoc(req.key, { number: v })} label={L("Nomor", "Number")} />}
+                      {req.number && <EditableField value={d.number || ""} onChange={(v) => setDoc(req.key, { number: v })} label={L("Nomor", "Number", "Nombor")} />}
                       {req.dated && (
                         <label className="flex flex-col">
-                          <span style={{ color: COLORS.inkSoft }} className="text-[10px]">{L("Tanggal terbit", "Issue date")}</span>
+                          <span style={{ color: COLORS.inkSoft }} className="text-[10px]">{L("Tanggal terbit", "Issue date", "Tarikh dikeluarkan")}</span>
                           <input type="date" value={d.issued || ""} onChange={(e) => setDoc(req.key, { issued: e.target.value })} style={{ borderColor: COLORS.line }} className="border rounded px-2 py-2 text-base sm:text-xs min-h-[38px]" />
                         </label>
                       )}
                       {req.dated && (
                         <label className="flex flex-col">
-                          <span style={{ color: COLORS.inkSoft }} className="text-[10px]">{L("Berlaku sampai", "Valid until")}{req.validMonths ? ` (${L("otomatis", "auto")} +${req.validMonths}${L(" bln", " mo")})` : ""}</span>
+                          <span style={{ color: COLORS.inkSoft }} className="text-[10px]">{L("Berlaku sampai", "Valid until", "Sah sehingga")}{req.validMonths ? ` (${L("otomatis", "auto", "automatik")} +${req.validMonths}${L(" bln", " mo", " bln")})` : ""}</span>
                           <input type="date" value={d.expiry || until || ""} onChange={(e) => setDoc(req.key, { expiry: e.target.value })} style={{ borderColor: COLORS.line }} className="border rounded px-2 py-2 text-base sm:text-xs min-h-[38px]" />
                         </label>
                       )}
@@ -2587,24 +2753,24 @@ function MandatoryDocs({ guard, onUpdate }) {
 
 function DocsOverview({ roster }) {
   const { lang } = useContext(LangContext);
-  const L = (a, b) => (lang === "en" ? b : a);
-  const sym = { ok: ["✓", COLORS.green], missing: ["✗", COLORS.red], expired: ["!", COLORS.red], nodate: ["?", COLORS.amberDeep] };
+  const L = (a, b, c) => pick(lang, a, b, c);
+  const sym = { ok: ["✓", COLORS.green], missing: ["✗", COLORS.ink], expired: ["!", COLORS.ink], nodate: ["?", COLORS.inkSoft] };
   const incomplete = roster.filter((g) => guardDocIssues(g).length > 0).length;
   return (
     <div className="flex flex-col gap-3">
       <div style={{ background: COLORS.card, borderColor: COLORS.line }} className="border rounded-xl p-3 flex items-center justify-between gap-2 flex-wrap">
         <p style={{ color: COLORS.ink }} className="text-sm font-medium">
-          {L(`${roster.length - incomplete} dari ${roster.length} personel lengkap`, `${roster.length - incomplete} of ${roster.length} guards complete`)}
+          {L(`${roster.length - incomplete} dari ${roster.length} personel lengkap`, `${roster.length - incomplete} of ${roster.length} guards complete`, `${roster.length - incomplete} daripada ${roster.length} anggota lengkap`)}
         </p>
         <button onClick={() => exportDocsChecklist(roster, lang)} style={{ borderColor: COLORS.amberDeep, color: COLORS.amberDeep }} className="border rounded-lg px-3 py-1.5 text-xs font-medium flex items-center gap-1.5 min-h-[36px]">
-          <FileSpreadsheet size={13} /> {L("Unduh daftar kekurangan (Excel)", "Download missing list (Excel)")}
+          <FileSpreadsheet size={13} /> {L("Unduh daftar kekurangan (Excel)", "Download missing list (Excel)", "Muat turun senarai kekurangan (Excel)")}
         </button>
       </div>
       <div style={{ background: COLORS.card, borderColor: COLORS.line }} className="border rounded-xl overflow-x-auto">
         <table className="text-xs w-full">
           <thead>
             <tr style={{ color: COLORS.inkSoft }}>
-              <th className="text-left p-2 sticky left-0" style={{ background: COLORS.card }}>{L("Nama", "Name")}</th>
+              <th className="text-left p-2 sticky left-0" style={{ background: COLORS.card }}>{L("Nama", "Name", "Nama")}</th>
               {DOC_REQUIREMENTS.map((r) => <th key={r.key} className="p-2 font-medium whitespace-nowrap">{r.key.toUpperCase()}</th>)}
             </tr>
           </thead>
@@ -2622,7 +2788,7 @@ function DocsOverview({ roster }) {
         </table>
       </div>
       <p style={{ color: COLORS.inkSoft }} className="text-[10px]">
-        ✓ OK · ✗ {L("kurang", "missing")} · ! {L("kadaluarsa", "expired")} · ? {L("tanggal belum diisi", "date not filled")}
+        ✓ OK · ✗ {L("kurang", "missing", "kurang")} · ! {L("kadaluarsa", "expired", "tamat tempoh")} · ? {L("tanggal belum diisi", "date not filled", "tarikh belum diisi")}
       </p>
     </div>
   );
@@ -2716,8 +2882,8 @@ function SettingsTab({ settings, onUpdate }) {
 
       <button
         onClick={() => onUpdate({ pin, danruPin, formTitle, org, siteLat, siteLng, geofenceRadius })}
-        style={{ background: COLORS.ink }}
-        className="text-white rounded-lg py-2.5 text-sm font-medium min-h-[44px]"
+        style={{ background: COLORS.green, color: COLORS.ink }}
+        className="font-bold rounded-lg py-2.5 text-sm font-medium min-h-[44px]"
       >
         {t("saveSettings")}
       </button>
@@ -2881,8 +3047,8 @@ function PrintPanel({ roster, entries, settings, schedule, showFullExport, showR
         <button
           onClick={() => window.print()}
           disabled={printMode === "one" && !selectedGuard}
-          style={{ background: COLORS.amberDeep }}
-          className="text-white rounded-lg px-4 py-2.5 text-sm font-medium flex items-center justify-center gap-1.5 disabled:opacity-40 min-h-[44px] w-full sm:w-auto"
+          style={{ background: COLORS.amber, color: COLORS.ink }}
+          className="font-bold rounded-lg px-4 py-2.5 text-sm font-medium flex items-center justify-center gap-1.5 disabled:opacity-40 min-h-[44px] w-full sm:w-auto"
         >
           <Printer size={15} /> {t("print")}
         </button>
@@ -2921,12 +3087,12 @@ function PrintPanel({ roster, entries, settings, schedule, showFullExport, showR
           <div className="no-print">
             <LocationLog entries={entries[selectedGuard.id] || {}} periodId={periodId} />
           </div>
-          <PrintSheet guard={selectedGuard} entries={entries[selectedGuard.id] || {}} periodId={periodId} settings={settings} />
+          <div className="eco-preview"><PrintSheet guard={selectedGuard} entries={entries[selectedGuard.id] || {}} periodId={periodId} settings={settings} /></div>
         </>
       )}
 
       {printMode === "all" && (
-        <AllPrintSheets roster={roster} entries={entries} periodId={periodId} settings={settings} />
+        <div className="eco-preview"><AllPrintSheets roster={roster} entries={entries} periodId={periodId} settings={settings} /></div>
       )}
     </div>
   );

@@ -246,10 +246,10 @@ const SOS_ROSTER = [
    Until that's set, everything falls back to browser localStorage — fine for
    solo testing on one device, but NOT shared across guards' phones. */
 
-export const APP_VERSION = "1.1.3";
+export const APP_VERSION = "1.1.4";
 // Phase 1 = guard database + documents only. Guard log-in/out, shift roster and
 // timesheet printing stay in the code but are hidden from guards and Danru;
-// only the Manager (secret key Ctrl+Alt+M) can reach the timesheet side.
+// only the Manager (PIN-protected link on the login page) can reach the timesheet side.
 const PHASE_DB = true;
 
 function addMonths(isoDate, n) {
@@ -911,11 +911,11 @@ function useT() {
   };
 }
 
-function LangToggle({ onVersionTap }) {
+function LangToggle() {
   const { lang, setLang } = useContext(LangContext);
   return (
     <div className="no-print fixed top-1.5 right-3 z-50 flex flex-col items-end gap-0.5">
-      <span onClick={onVersionTap} style={{ color: COLORS.inkSoft }} className="text-[10px] leading-none opacity-70 select-none">
+      <span style={{ color: COLORS.inkSoft }} className="text-[10px] leading-none opacity-70 select-none">
         v{APP_VERSION}
       </span>
       <div className="flex rounded-lg overflow-hidden border" style={{ borderColor: COLORS.line, background: COLORS.card }}>
@@ -986,27 +986,6 @@ export default function SecurityTimesheetApp() {
       setLoaded(true);
     })();
   }, []);
-
-  // Hidden Manager entry: Ctrl+Alt+M on a keyboard, or tap the version label 5 times (phones).
-  const tapRef = React.useRef({ n: 0, t: 0 });
-  useEffect(() => {
-    function onKey(e) {
-      if (e.ctrlKey && e.altKey && (e.key === "m" || e.key === "M" || e.code === "KeyM")) {
-        e.preventDefault();
-        setPinInput(""); setPinError("");
-        setView("manager-gate");
-      }
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
-  function onVersionTap() {
-    const now = Date.now();
-    const r = tapRef.current;
-    r.n = now - r.t < 1500 ? r.n + 1 : 1;
-    r.t = now;
-    if (r.n >= 5) { r.n = 0; setPinInput(""); setPinError(""); setView("manager-gate"); }
-  }
 
   // Roster edits apply instantly on screen; the save to Google Sheets is debounced
   // (one write ~0.8 s after the last change) and always sends the latest roster.
@@ -1153,7 +1132,7 @@ export default function SecurityTimesheetApp() {
         input[type="time"]::-webkit-calendar-picker-indicator { opacity: 0.6; }
       `}</style>
 
-      <LangToggle onVersionTap={onVersionTap} />
+      <LangToggle />
 
       {view === "login" && (
         <LoginScreen

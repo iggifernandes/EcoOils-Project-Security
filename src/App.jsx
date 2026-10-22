@@ -246,7 +246,7 @@ const SOS_ROSTER = [
    Until that's set, everything falls back to browser localStorage — fine for
    solo testing on one device, but NOT shared across guards' phones. */
 
-export const APP_VERSION = "1.1.1";
+export const APP_VERSION = "1.1.3";
 // Phase 1 = guard database + documents only. Guard log-in/out, shift roster and
 // timesheet printing stay in the code but are hidden from guards and Danru;
 // only the Manager (secret key Ctrl+Alt+M) can reach the timesheet side.
@@ -911,23 +911,25 @@ function useT() {
   };
 }
 
-function LangToggle() {
+function LangToggle({ onVersionTap }) {
   const { lang, setLang } = useContext(LangContext);
   return (
-    <div
-      className="no-print fixed top-3 right-3 z-50 flex rounded-lg overflow-hidden border"
-      style={{ borderColor: COLORS.line, background: COLORS.card }}
-    >
-      {["id", "en"].map((l) => (
-        <button
-          key={l}
-          onClick={() => setLang(l)}
-          style={{ background: lang === l ? COLORS.ink : "transparent", color: lang === l ? "#fff" : COLORS.inkSoft }}
-          className="px-2.5 py-1 text-[11px] font-semibold uppercase"
-        >
-          {l}
-        </button>
-      ))}
+    <div className="no-print fixed top-1.5 right-3 z-50 flex flex-col items-end gap-0.5">
+      <span onClick={onVersionTap} style={{ color: COLORS.inkSoft }} className="text-[10px] leading-none opacity-70 select-none">
+        v{APP_VERSION}
+      </span>
+      <div className="flex rounded-lg overflow-hidden border" style={{ borderColor: COLORS.line, background: COLORS.card }}>
+        {["id", "en"].map((l) => (
+          <button
+            key={l}
+            onClick={() => setLang(l)}
+            style={{ background: lang === l ? COLORS.ink : "transparent", color: lang === l ? "#fff" : COLORS.inkSoft }}
+            className="px-2.5 py-1 text-[11px] font-semibold uppercase"
+          >
+            {l}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1151,7 +1153,7 @@ export default function SecurityTimesheetApp() {
         input[type="time"]::-webkit-calendar-picker-indicator { opacity: 0.6; }
       `}</style>
 
-      <LangToggle />
+      <LangToggle onVersionTap={onVersionTap} />
 
       {view === "login" && (
         <LoginScreen
@@ -1319,12 +1321,6 @@ export default function SecurityTimesheetApp() {
           saving={saving}
         />
       )}
-      <div
-        style={{ color: COLORS.inkSoft, pointerEvents: "none" }}
-        className="fixed bottom-1 left-0 right-0 text-center text-[10px] opacity-60 print:hidden"
-      >
-        <span onClick={onVersionTap} style={{ pointerEvents: "auto", padding: "6px 10px" }}>EcoOils Security v{APP_VERSION}</span>
-      </div>
     </div>
     </LangContext.Provider>
   );
@@ -1380,15 +1376,13 @@ function LoginScreen({ roster, onPickGuard, onManager, onDanru }) {
         >
           <Lock size={12} /> {t("danruAccess")}
         </button>
-        {!PHASE_DB && (
-          <button
-            onClick={onManager}
-            style={{ color: COLORS.inkSoft }}
-            className="text-xs flex items-center gap-1.5 hover:opacity-70"
-          >
-            <Lock size={12} /> {t("managerAccess")}
-          </button>
-        )}
+        <button
+          onClick={onManager}
+          style={{ color: COLORS.inkSoft }}
+          className="text-xs flex items-center gap-1.5 hover:opacity-70"
+        >
+          <Lock size={12} /> {t("managerAccess")}
+        </button>
       </div>
     </div>
   );
@@ -2285,7 +2279,10 @@ function GuardPhoto({ guardId, hasPhoto, onChanged, folderName }) {
 function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
   const t = useT();
   const [expanded, setExpanded] = useState(false);
-  const [newCert, setNewCert] = useState({ name: "", number: "", issued: "", expiry: "", link: "", notes: "" });
+  const [newCert, setNewCert] = useState({ name: "", number: "", issued: "", expiry: "", notes: "" });
+  const [newCertFile, setNewCertFile] = useState(null);
+  const [certBusy, setCertBusy] = useState(false);
+  const [certErr, setCertErr] = useState("");
   const { lang } = useContext(LangContext);
   const issues = guardDocIssues(guard);
   const certificates = guard.certificates || [];
@@ -2324,10 +2321,23 @@ function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
   const todayKey = dateKey(now.getFullYear(), now.getMonth(), now.getDate());
   const todayShift = schedule?.[guard.id]?.[todayKey] || "";
 
-  function addCertificate() {
-    if (!newCert.name.trim()) return;
-    onUpdate(guard.id, { certificates: [...certificates, { ...newCert, id: uid() }] });
-    setNewCert({ name: "", number: "", issued: "", expiry: "", link: "", notes: "" });
+  // Pick the file here; on "Add" it is uploaded straight to the guard's Drive folder.
+  async function addCertificate() {
+    if (!newCert.name.trim() || certBusy) return;
+    setCertErr("");
+    const id = uid();
+    const cert = { ...newCert, id };
+    if (newCertFile) {
+      setCertBusy(true);
+      const res = await uploadFileToStorage(newCertFile, `certfile:${id}`, guard.name);
+      setCertBusy(false);
+      if (!res.ok) { setCertErr(res.error === "too-large" ? t("fileTooLarge") : (lang === "en" ? "Upload failed, try again." : "Unggah gagal, coba lagi.")); return; }
+      cert.fileName = res.fileName || newCertFile.name;
+      cert.fileSize = res.size ?? newCertFile.size;
+    }
+    onUpdate(guard.id, { certificates: [...certificates, cert] });
+    setNewCert({ name: "", number: "", issued: "", expiry: "", notes: "" });
+    setNewCertFile(null);
   }
 
   function removeCertificate(certId) {
@@ -2478,11 +2488,6 @@ function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
                           </p>
                         )}
                         {c.notes && <p style={{ color: COLORS.inkSoft }}>{c.notes}</p>}
-                        {c.link && (
-                          <a href={c.link} target="_blank" rel="noopener noreferrer" style={{ color: COLORS.amberDeep }} className="underline flex items-center gap-1 mt-0.5">
-                            <Link2 size={11} /> {t("openLink")}
-                          </a>
-                        )}
                       </div>
                       <button onClick={() => removeCertificate(c.id)} style={{ color: COLORS.red }} className="flex-shrink-0 p-2 -m-1"><X size={14} /></button>
                     </div>
@@ -2509,12 +2514,17 @@ function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
                 <span style={{ color: COLORS.inkSoft }} className="text-[10px]">{t("certExpiry")}</span>
                 <input type="date" value={newCert.expiry} onChange={(e) => setNewCert({ ...newCert, expiry: e.target.value })} style={{ borderColor: COLORS.line }} className="border rounded px-2 py-2 text-base sm:text-xs min-h-[40px] w-full" />
               </label>
-              <input placeholder={t("certLink")} value={newCert.link} onChange={(e) => setNewCert({ ...newCert, link: e.target.value })} style={{ borderColor: COLORS.line }} className="border rounded px-2 py-2 text-base sm:text-xs min-h-[40px] sm:col-span-2" />
+              <label style={{ borderColor: COLORS.line, color: COLORS.inkSoft }} className="border rounded px-2 py-2 text-xs min-h-[40px] sm:col-span-2 flex items-center gap-2 cursor-pointer">
+                <Paperclip size={13} />
+                <span className="truncate">{newCertFile ? `${newCertFile.name} (${formatFileSize(newCertFile.size)})` : (lang === "en" ? "Choose file to upload (max 2 MB)" : "Pilih file untuk diunggah (maks 2 MB)")}</span>
+                <input type="file" className="hidden" onChange={(e) => setNewCertFile(e.target.files?.[0] || null)} />
+              </label>
               <input placeholder={t("certNotes")} value={newCert.notes} onChange={(e) => setNewCert({ ...newCert, notes: e.target.value })} style={{ borderColor: COLORS.line }} className="border rounded px-2 py-2 text-base sm:text-xs min-h-[40px] sm:col-span-2" />
             </div>
             <button onClick={addCertificate} style={{ borderColor: COLORS.amberDeep, color: COLORS.amberDeep }} className="border rounded-lg px-3 py-2.5 text-sm font-medium mt-2 flex items-center justify-center gap-1.5 w-full min-h-[44px]">
-              <Plus size={13} /> {t("addCertificate")}
+              <Plus size={13} /> {certBusy ? t("uploading") : t("addCertificate")}
             </button>
+            {certErr && <p style={{ color: COLORS.red }} className="text-xs mt-1">{certErr}</p>}
           </div>
         </div>
       )}

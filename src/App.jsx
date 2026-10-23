@@ -250,7 +250,7 @@ const SOS_ROSTER = [
    Until that's set, everything falls back to browser localStorage — fine for
    solo testing on one device, but NOT shared across guards' phones. */
 
-export const APP_VERSION = "1.2.0";
+export const APP_VERSION = "1.2.1";
 // Phase 1 = guard database + documents only. Guard log-in/out, shift roster and
 // timesheet printing stay in the code but are hidden from guards and Danru;
 // only the Manager (PIN-protected link on the login page) can reach the timesheet side.
@@ -2006,7 +2006,7 @@ function DanruView({ roster, activeRoster, entries, settings, schedule, onAddGua
 
 function ManagerView({ roster, activeRoster, entries, settings, schedule, onAddGuard, onSoftDeleteGuard, onRestoreGuard, onUpdateGuard, onImportRoster, onSetScheduleCell, onUpdateSettings, onLogout, saving }) {
   const t = useT();
-  const [tab, setTab] = useState("print"); // print | roster | schedule | settings
+  const [tab, setTab] = useState("roster"); // roster | schedule | settings (Print / Verify hidden: timesheets live in the Patroli app)
 
   return (
     <div className="min-h-screen">
@@ -2023,7 +2023,7 @@ function ManagerView({ roster, activeRoster, entries, settings, schedule, onAddG
         </div>
 
         <div className="flex flex-wrap gap-x-5">
-          {[["print", t("tabPrint")], ["roster", t("tabRoster")], ["schedule", t("tabSchedule")], ["settings", t("tabSettings")]].map(([id, label]) => (
+          {[["roster", t("tabRoster")], ["schedule", t("tabSchedule")], ["settings", t("tabSettings")]].map(([id, label]) => (
             <button
               key={id}
               onClick={() => setTab(id)}
@@ -2044,9 +2044,6 @@ function ManagerView({ roster, activeRoster, entries, settings, schedule, onAddG
 
         {tab === "settings" && <SettingsTab settings={settings} onUpdate={onUpdateSettings} />}
 
-        {tab === "print" && (
-          <PrintPanel roster={activeRoster} entries={entries} settings={settings} schedule={schedule} showFullExport />
-        )}
       </div>
     </div>
   );

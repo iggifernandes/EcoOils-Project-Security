@@ -250,7 +250,7 @@ const SOS_ROSTER = [
    Until that's set, everything falls back to browser localStorage — fine for
    solo testing on one device, but NOT shared across guards' phones. */
 
-export const APP_VERSION = "1.2.1";
+export const APP_VERSION = "1.2.2";
 // Phase 1 = guard database + documents only. Guard log-in/out, shift roster and
 // timesheet printing stay in the code but are hidden from guards and Danru;
 // only the Manager (PIN-protected link on the login page) can reach the timesheet side.
@@ -322,8 +322,11 @@ const USE_REMOTE = !!API_URL;
 
 async function apiCall(action, payload) {
   if (!USE_REMOTE) return null;
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort(), 30000); // never hang forever on a slow/cold Apps Script
   try {
     const res = await fetch(API_URL, {
+      signal: ctrl.signal,
       method: "POST",
       // text/plain avoids a CORS preflight; Apps Script reads the raw body
       // and JSON.parses it regardless of the declared content type.
@@ -333,6 +336,8 @@ async function apiCall(action, payload) {
     return await res.json();
   } catch {
     return null;
+  } finally {
+    clearTimeout(to);
   }
 }
 
@@ -371,6 +376,25 @@ async function loadShared(key, fallback) {
   const raw = lsGet(`shared:${key}`);
   if (raw == null) return fallback;
   try { return JSON.parse(raw); } catch { return fallback; }
+}
+// Like loadShared, but tells "the server said there is nothing" (ok, value null) apart from
+// "the server could not be reached" (ok false). Retries, so a slow cold start is not mistaken
+// for an empty database — that mistake used to re-seed and overwrite the saved guards.
+async function loadSharedStrict(key) {
+  if (!USE_REMOTE) {
+    const raw = lsGet(`shared:${key}`);
+    if (raw == null) return { ok: true, value: null };
+    try { return { ok: true, value: JSON.parse(raw) }; } catch { return { ok: true, value: null }; }
+  }
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    const remote = await apiCall("get", { key });
+    if (remote && remote.ok) {
+      if (!remote.value) return { ok: true, value: null };
+      try { return { ok: true, value: JSON.parse(remote.value) }; } catch { return { ok: false }; }
+    }
+    if (attempt < 3) await new Promise((r) => setTimeout(r, 1500 * attempt));
+  }
+  return { ok: false };
 }
 async function loadSharedPrefix(prefix) {
   const out = {};
@@ -1128,39 +1152,45 @@ export default function SecurityTimesheetApp() {
   const [lang, setLang] = useState("id");
   const [schedule, setSchedule] = useState({});
 
-  useEffect(() => {
-    (async () => {
-      const [r, e, s, sch, bound] = await Promise.all([
-        loadShared("roster", []),
-        Promise.resolve({}),
-        loadShared("settings", { pin: "0822", danruPin: "2026", formTitle: "FORM KEHADIRAN REGULER", org: "", siteLat: "", siteLng: "", geofenceRadius: "150" }),
-        loadShared("schedule", {}),
-        loadPersonal("boundGuard", null),
-      ]);
-      let finalRoster = r;
-      if (r.length === 0) {
-        const seeded = SOS_ROSTER.map((g) => ({ ...g, id: uid() }));
-        finalRoster = seeded;
-        setRoster(seeded);
-        rosterRef.current = seeded;
-        await saveShared("roster", seeded);
-      } else {
-        setRoster(r);
-        rosterRef.current = r;
-      }
-      setEntries(e);
-      setSettings({ pin: "0822", danruPin: "2026", siteLat: "", siteLng: "", geofenceRadius: "150", ...s });
-      setSchedule(sch);
-      if (!PHASE_DB && bound?.guardId && finalRoster.some((g) => g.id === bound.guardId)) {
-        setBoundGuardId(bound.guardId);
-        setCurrentGuardId(bound.guardId);
-        setView("guard");
-        const mine = await loadShared(`entries:${bound.guardId}`, {});
-        setEntries({ [bound.guardId]: mine });
-      }
-      setLoaded(true);
-    })();
+  const [loadError, setLoadError] = useState(false);
+  const loadAll = useCallback(async () => {
+    setLoadError(false);
+    const [rr, ss, sc, bound] = await Promise.all([
+      loadSharedStrict("roster"),
+      loadSharedStrict("settings"),
+      loadSharedStrict("schedule"),
+      loadPersonal("boundGuard", null),
+    ]);
+    // If the server could not be reached, stop here. Never seed or save anything:
+    // that would overwrite the real roster with the default list.
+    if (!rr.ok || !ss.ok || !sc.ok) { setLoadError(true); return; }
+    const r = Array.isArray(rr.value) ? rr.value : [];
+    const s = ss.value || {};
+    const sch = sc.value || {};
+    let finalRoster = r;
+    if (r.length === 0) {
+      const seeded = SOS_ROSTER.map((g) => ({ ...g, id: uid() }));
+      finalRoster = seeded;
+      setRoster(seeded);
+      rosterRef.current = seeded;
+      await saveShared("roster", seeded);
+    } else {
+      setRoster(r);
+      rosterRef.current = r;
+    }
+    setEntries({});
+    setSettings({ pin: "0822", danruPin: "2026", formTitle: "FORM KEHADIRAN REGULER", org: "", siteLat: "", siteLng: "", geofenceRadius: "150", ...s });
+    setSchedule(sch);
+    if (!PHASE_DB && bound?.guardId && finalRoster.some((g) => g.id === bound.guardId)) {
+      setBoundGuardId(bound.guardId);
+      setCurrentGuardId(bound.guardId);
+      setView("guard");
+      const mine = await loadShared(`entries:${bound.guardId}`, {});
+      setEntries({ [bound.guardId]: mine });
+    }
+    setLoaded(true);
   }, []);
+  useEffect(() => { loadAll(); }, [loadAll]);
 
   // Roster edits apply instantly on screen; the save to Google Sheets is debounced
   // (one write ~0.8 s after the last change) and always sends the latest roster.
@@ -1280,6 +1310,26 @@ export default function SecurityTimesheetApp() {
     setPinInput("");
     setPinError("");
     setView("device-reset-gate");
+  }
+
+  if (loadError) {
+    return (
+      <LangContext.Provider value={{ lang, setLang }}>
+        <div className="eco-app" style={{ minHeight: "100vh" }}>
+          <LangToggle />
+          <div className="max-w-[780px] mx-auto px-4">
+            <h1 className="eco-title">EcoOils Security</h1>
+            <div className="eco-rule" />
+            <p style={{ color: COLORS.ink }} className="text-sm mt-6">
+              {pick(lang, "Tidak dapat terhubung ke server. Data Anda aman — tidak ada yang diubah.", "Can't reach the server. Your data is safe — nothing was changed.", "Tidak dapat menghubungi pelayan. Data anda selamat — tiada apa yang diubah.")}
+            </p>
+            <button onClick={loadAll} style={{ background: COLORS.green, color: COLORS.ink }} className="rounded-lg px-6 font-bold text-sm min-h-[48px] mt-4">
+              {pick(lang, "Coba lagi", "Try again", "Cuba lagi")}
+            </button>
+          </div>
+        </div>
+      </LangContext.Provider>
+    );
   }
 
   if (!loaded) {

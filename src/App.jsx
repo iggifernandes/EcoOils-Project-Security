@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo, useContext, createContext } from "react";
+import ECO_LOGO from "./ecoLogo.js";
 import { Shield, Plus, Trash2, Printer, LogOut, Lock, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Clock, Check, X, UserPlus, Settings, ArrowLeft, MapPin, MapPinOff, FileSpreadsheet, CalendarDays, AlertTriangle, Award, Link2, Users, Camera, Download, ShieldAlert, Paperclip } from "lucide-react";
 // xlsx is large (~400 kB): loaded only when an Excel export is requested.
 const loadXLSX = () => import("xlsx");
@@ -250,7 +251,8 @@ const SOS_ROSTER = [
    Until that's set, everything falls back to browser localStorage — fine for
    solo testing on one device, but NOT shared across guards' phones. */
 
-export const APP_VERSION = "1.2.2";
+export const APP_VERSION = "1.2.3";
+export const APP_DATE = "2026-10-28";
 // Phase 1 = guard database + documents only. Guard log-in/out, shift roster and
 // timesheet printing stay in the code but are hidden from guards and Danru;
 // only the Manager (PIN-protected link on the login page) can reach the timesheet side.
@@ -1113,16 +1115,20 @@ function useT() {
 function LangToggle() {
   const { lang, setLang } = useContext(LangContext);
   return (
-    <div className="no-print eco-header">
-      <span className="eco-version">v{APP_VERSION}</span>
-      <div className="eco-lang" role="group" aria-label="Language">
-        {["en", "id", "ms"].map((l) => (
-          <button key={l} onClick={() => setLang(l)} className={lang === l ? "on" : ""} aria-pressed={lang === l}>
-            {l.toUpperCase()}
-          </button>
-        ))}
+    <header className="eh no-print">
+      <img className="eh-logo" alt="EcoOils Mentari" src={ECO_LOGO} />
+      <div className="eh-r">
+        <div className="eh-v">v{APP_VERSION}</div>
+        <div className="eh-l eco-lang" role="group" aria-label="Language">
+          {["en", "id", "ms"].map((l) => (
+            <button key={l} onClick={() => setLang(l)} className={lang === l ? "on" : ""} aria-pressed={lang === l}>
+              {l.toUpperCase()}
+            </button>
+          ))}
+        </div>
+        <div className="eh-d">v{APP_VERSION} · {APP_DATE}</div>
       </div>
-    </div>
+    </header>
   );
 }
 

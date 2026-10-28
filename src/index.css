@@ -15,7 +15,7 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 button, input, select, textarea { font-family: inherit; }
-.eco-app { position: relative; z-index: 1; padding-top: 52px; font-family: Jost, system-ui, Arial, sans-serif; }
+.eco-app { position: relative; z-index: 1; padding-top: 0; font-family: Jost, system-ui, Arial, sans-serif; }
 
 /* flat: no shadows, 8px corners */
 *, *::before, *::after { box-shadow: none !important; }
@@ -87,3 +87,16 @@ button.eco-flat, .eco-lang button, .eco-tab { min-height: 0; }
   .eco-app { padding-top: 0; }
   body { background: #fff; }
 }
+
+/* standard EcoOils header */
+header.eh{background:#fff;color:#231f20;padding:10px 16px 6px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;border-bottom:1px solid #dcdcdc;position:relative;z-index:5;margin:0;width:auto;max-width:none;height:auto;min-height:0;box-shadow:none;font-family:Jost,system-ui,Arial,sans-serif;font-size:16px;line-height:1.45}
+header.eh .eh-logo{height:44px;width:auto;max-width:58%;object-fit:contain;display:block;margin:0}
+header.eh .eh-r{display:flex;flex-direction:column;align-items:flex-end;gap:0;margin-left:auto}
+header.eh .eh-v{font-size:12px;letter-spacing:.08em;color:#6e6b6c;line-height:1.2;padding:2px 0 0;white-space:nowrap;font-variant-numeric:tabular-nums;font-weight:400;background:none;border:0}
+header.eh .eh-d{font-size:11px;letter-spacing:.06em;color:#aaaaaa;line-height:1.2;padding:2px 0 0;white-space:nowrap;font-variant-numeric:tabular-nums}
+header.eh .eh-l{display:flex;gap:0;margin:0;padding:0;background:none;border:0}
+header.eh .eh-l button{background:none;color:#6e6b6c;border:0;border-bottom:3px solid transparent;border-radius:0;min-width:44px;min-height:44px;padding:0 8px;margin:0;font:400 15px/1 Jost,system-ui,Arial,sans-serif;letter-spacing:.06em;cursor:pointer;box-shadow:none;opacity:1;text-transform:none}
+header.eh .eh-l button.on,header.eh .eh-l button.active,header.eh .eh-l button[aria-pressed="true"]{color:#231f20;font-weight:600;border-bottom-color:#44a276;background:none}
+@media(max-width:420px){header.eh .eh-l button{min-width:40px}}
+.eco-lang button.on{font-weight:600}
+@media print{header.eh{display:none!important}}

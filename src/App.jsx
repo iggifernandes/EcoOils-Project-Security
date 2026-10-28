@@ -251,7 +251,7 @@ const SOS_ROSTER = [
    Until that's set, everything falls back to browser localStorage — fine for
    solo testing on one device, but NOT shared across guards' phones. */
 
-export const APP_VERSION = "1.2.3";
+export const APP_VERSION = "1.2.4";
 export const APP_DATE = "2026-10-28";
 // Phase 1 = guard database + documents only. Guard log-in/out, shift roster and
 // timesheet printing stay in the code but are hidden from guards and Danru;
@@ -2424,6 +2424,8 @@ function FileAttachment({ storageKey, fileName, fileSize, onUploaded, onRemoved,
 function GuardPhoto({ guardId, hasPhoto, onChanged, folderName }) {
   const t = useT();
   const [photoUrl, setPhotoUrl] = useState(null);
+  const [fallbackUrl, setFallbackUrl] = useState("");
+  const [photoFailed, setPhotoFailed] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
 
@@ -2432,7 +2434,10 @@ function GuardPhoto({ guardId, hasPhoto, onChanged, folderName }) {
     if (hasPhoto) {
       loadShared(`photo:${guardId}`, null).then((data) => {
         if (cancelled || !data) return;
-        if (data.driveViewUrl) setPhotoUrl(data.driveViewUrl);
+        // Google no longer serves uc?export=view reliably inside <img>; the thumbnail link works for
+        // "anyone with the link" files. The old link is kept as a fallback (see onError below).
+        if (data.driveFileId) { setFallbackUrl(data.driveViewUrl || ""); setPhotoUrl(`https://drive.google.com/thumbnail?id=${data.driveFileId}&sz=w400`); }
+        else if (data.driveViewUrl) setPhotoUrl(data.driveViewUrl);
         else if (data.base64) setPhotoUrl(`data:${data.mimeType};base64,${data.base64}`);
       });
     } else {
@@ -2449,6 +2454,7 @@ function GuardPhoto({ guardId, hasPhoto, onChanged, folderName }) {
     const res = await uploadFileToStorage(file, `photo:${guardId}`, folderName);
     setUploading(false);
     if (res.ok) {
+      setPhotoFailed(false);
       onChanged(true);
     } else if (res.error === "too-large") {
       setError(t("fileTooLarge"));
@@ -2459,7 +2465,7 @@ function GuardPhoto({ guardId, hasPhoto, onChanged, folderName }) {
   return (
     <div className="flex items-center gap-3">
       <div style={{ background: COLORS.paper, borderColor: COLORS.line }} className="w-16 h-16 rounded-xl border overflow-hidden flex items-center justify-center flex-shrink-0">
-        {photoUrl ? <img src={photoUrl} alt="" className="w-full h-full object-cover" /> : <Camera size={20} color={COLORS.inkSoft} />}
+        {photoUrl && !photoFailed ? <img src={photoUrl} alt="" className="w-full h-full object-cover" onError={() => { if (fallbackUrl && photoUrl !== fallbackUrl) { setPhotoUrl(fallbackUrl); setFallbackUrl(""); } else setPhotoFailed(true); }} /> : <Camera size={20} color={COLORS.inkSoft} />}
       </div>
       <div className="flex flex-col gap-1">
         <label style={{ borderColor: COLORS.amberDeep, color: COLORS.amberDeep }} className="border rounded-lg px-3 py-1.5 text-xs font-medium flex items-center gap-1.5 cursor-pointer w-fit min-h-[36px]">

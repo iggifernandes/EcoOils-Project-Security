@@ -23,7 +23,19 @@
     <script>
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", () => {
-          navigator.serviceWorker.register("sw.js").catch(() => {});
+          // updateViaCache:none = always look for a new sw.js; a new version reloads the app once by itself.
+          const hadController = !!navigator.serviceWorker.controller;
+          let reloaded = false;
+          navigator.serviceWorker.addEventListener("controllerchange", () => {
+            if (!hadController || reloaded) return;
+            reloaded = true;
+            window.location.reload();
+          });
+          navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
+            const check = () => { try { reg.update(); } catch (e) {} };
+            document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") check(); });
+            setInterval(check, 5 * 60 * 1000);
+          }).catch(() => {});
         });
       }
     </script>

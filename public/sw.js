@@ -1,6 +1,6 @@
 // Basic service worker for the Security Timesheet app.
 // Bump CACHE_NAME whenever you deploy a new version so old caches get cleared.
-const CACHE_NAME = "ecooils-security-v1.2.4";
+const CACHE_NAME = "ecooils-security-v1.2.5";
 
 // Files that exist from day one — safe to precache. Add your built JS/CSS
 // filenames here too once you know them (e.g. "/assets/index-ab12cd34.js").
@@ -39,7 +39,7 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== self.location.origin) return; // don't touch cross-origin (e.g. storage API) calls
 
   event.respondWith(
-    fetch(request)
+    fetch(request, request.mode === "navigate" ? { cache: "no-store" } : undefined)
       .then((response) => {
         const copy = response.clone();
         caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)).catch(() => {});

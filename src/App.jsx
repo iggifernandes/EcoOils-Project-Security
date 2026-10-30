@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useContext, createContext } from "react";
 import ECO_LOGO from "./ecoLogo.js";
-import { Shield, Plus, Trash2, Printer, LogOut, Lock, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Clock, Check, X, UserPlus, Settings, ArrowLeft, MapPin, MapPinOff, FileSpreadsheet, CalendarDays, AlertTriangle, Award, Link2, Users, Camera, Download, ShieldAlert, Paperclip } from "lucide-react";
+import { Shield, Plus, Trash2, Printer, LogOut, Lock, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Clock, Check, X, UserPlus, Settings, ArrowLeft, MapPin, MapPinOff, FileSpreadsheet, CalendarDays, AlertTriangle, Award, Link2, Users, Camera, Download, ShieldAlert, Paperclip, Search, Eye } from "lucide-react";
 // xlsx is large (~400 kB): loaded only when an Excel export is requested.
 const loadXLSX = () => import("xlsx");
 
@@ -251,7 +251,7 @@ const SOS_ROSTER = [
    Until that's set, everything falls back to browser localStorage — fine for
    solo testing on one device, but NOT shared across guards' phones. */
 
-export const APP_VERSION = "1.2.5";
+export const APP_VERSION = "1.3.0";
 export const APP_DATE = "2026-10-28";
 // Phase 1 = guard database + documents only. Guard log-in/out, shift roster and
 // timesheet printing stay in the code but are hidden from guards and Danru;
@@ -508,7 +508,7 @@ async function uploadFileToStorage(file, storageKey, folderName) {
         driveDownloadUrl: remote.file.downloadUrl,
         uploadedAt: new Date().toISOString(),
       });
-      return { ok, fileName: file.name, size: file.size };
+      return { ok, fileName: file.name, size: file.size, fileId: remote.file.id };
     }
 
     const ok = await saveShared(storageKey, {
@@ -2025,7 +2025,7 @@ function DanruView({ roster, activeRoster, entries, settings, schedule, onAddGua
   const [tab, setTab] = useState("roster"); // roster | docs
   const { lang } = useContext(LangContext);
   return (
-    <div className="min-h-screen px-4 py-4 max-w-[780px] mx-auto flex flex-col gap-4">
+    <div className="min-h-screen px-4 lg:px-8 py-4 max-w-[1700px] mx-auto flex flex-col gap-4">
       <div>
       <div className="flex items-end justify-between gap-3">
         <h1 className="eco-title">{t("danruHeader")}</h1>
@@ -2066,7 +2066,7 @@ function ManagerView({ roster, activeRoster, entries, settings, schedule, onAddG
 
   return (
     <div className="min-h-screen">
-      <div className="no-print px-4 py-4 max-w-[780px] mx-auto flex flex-col gap-4">
+      <div className="no-print px-4 lg:px-8 py-4 max-w-[1700px] mx-auto flex flex-col gap-4">
         <div>
         <div className="flex items-end justify-between gap-3">
           <h1 className="eco-title">{t("manager")}</h1>
@@ -2148,6 +2148,32 @@ function LocationLog({ entries, periodId }) {
   );
 }
 
+function GuardRow({ guard, selected, onClick }) {
+  const { lang } = useContext(LangContext);
+  const [imgOk, setImgOk] = useState(true);
+  const n = guardDocIssues(guard).length;
+  const initials = String(guard.name || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+  return (
+    <button
+      onClick={onClick}
+      style={{ borderColor: selected ? COLORS.green : COLORS.line, background: selected ? "#F1F8F4" : COLORS.card, borderLeftWidth: 4 }}
+      className="eco-flat border rounded-lg px-3 py-2 flex items-center gap-3 text-left w-full"
+    >
+      <span style={{ background: "#F1F1F1", color: COLORS.inkSoft }} className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center text-xs font-medium flex-shrink-0">
+        {guard.photoFileId && imgOk ? <img loading="lazy" src={driveThumb(guard.photoFileId, 96)} alt="" onError={() => setImgOk(false)} className="w-full h-full object-cover" /> : initials}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span style={{ color: COLORS.ink }} className="block text-sm font-medium truncate">{guard.name}</span>
+        <span style={{ color: COLORS.inkSoft }} className="block text-xs truncate">{[guard.jabatan, guard.company].filter(Boolean).join(" · ") || "—"}</span>
+      </span>
+      <span style={{ borderColor: COLORS.line, color: COLORS.ink }} className="border text-[11px] font-medium rounded-full px-2 py-0.5 whitespace-nowrap inline-flex items-center gap-1.5 flex-shrink-0">
+        <i style={{ background: n > 0 ? COLORS.amber : COLORS.green }} className="inline-block w-2 h-2 rounded-full" />
+        {n > 0 ? pick(lang, `${n} kurang`, `${n} missing`, `${n} kurang`) : pick(lang, "Lengkap", "Complete", "Lengkap")}
+      </span>
+    </button>
+  );
+}
+
 function RosterTab({ roster, role, settings, schedule, onAdd, onSoftDelete, onRestore, onUpdate, onImportRoster }) {
   const t = useT();
   const [form, setForm] = useState({ name: "", npk: "", jabatan: "", projek: "", company: "", phone: "", regu: "" });
@@ -2169,9 +2195,43 @@ function RosterTab({ roster, role, settings, schedule, onAdd, onSoftDelete, onRe
 
   const activeGuards = roster.filter((g) => !g.deleted);
   const deletedGuards = roster.filter((g) => g.deleted);
+  const [selectedId, setSelectedId] = useState(null);
+  const [showAdd, setShowAdd] = useState(false);
+  const [query, setQuery] = useState("");
+  const { lang } = useContext(LangContext);
+  const q = query.trim().toLowerCase();
+  const filtered = activeGuards.filter((g) => !q || [g.name, g.npk, g.jabatan, g.company].some((v) => String(v || "").toLowerCase().includes(q)));
+  const selected = activeGuards.find((g) => g.id === selectedId) || null;
+  const detailOpen = !!selected || showAdd;
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="lg:grid lg:grid-cols-[340px_minmax(0,1fr)] lg:gap-6 lg:h-[calc(100vh-250px)] lg:min-h-[520px]">
+        <aside className={(detailOpen ? "hidden " : "flex ") + "lg:flex flex-col gap-3 min-h-0"}>
+          <div className="flex gap-2">
+            <label style={{ borderColor: COLORS.line }} className="border rounded-lg flex items-center gap-2 px-3 flex-1 min-w-0">
+              <Search size={15} color={COLORS.inkSoft} />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={pick(lang, "Cari nama / NPK", "Search name / NPK", "Cari nama / NPK")} className="py-2.5 text-sm outline-none w-full min-w-0 bg-transparent" />
+            </label>
+            <button onClick={() => { setShowAdd(true); setSelectedId(null); }} style={{ background: COLORS.green, color: COLORS.ink }} className="rounded-lg px-3 font-bold text-sm flex items-center gap-1.5 min-h-[44px] flex-shrink-0">
+              <Plus size={14} /> {t("add")}
+            </button>
+          </div>
+          <p style={{ color: COLORS.inkSoft }} className="text-xs">{t("totalGuards", activeGuards.length)}</p>
+          <div className="flex flex-col gap-1.5 lg:overflow-y-auto min-h-0 flex-1 lg:pr-1">
+            {filtered.map((g) => (
+              <GuardRow key={g.id} guard={g} selected={g.id === selectedId && !showAdd} onClick={() => { setSelectedId(g.id); setShowAdd(false); }} />
+            ))}
+            {activeGuards.length === 0 && <div className="flex flex-col items-center gap-3 py-8"><DotGrid size={56} /><p style={{ color: COLORS.inkSoft }} className="text-sm text-center uppercase tracking-widest font-light">{t("noPersonnelYet")}</p></div>}
+          </div>
+        </aside>
+
+        <section className={(detailOpen ? "block " : "hidden ") + "lg:block lg:overflow-y-auto min-h-0 lg:pr-1"}>
+          <button onClick={() => { setSelectedId(null); setShowAdd(false); }} style={{ color: COLORS.ink }} className="lg:hidden flex items-center gap-1.5 text-sm font-medium mb-3 min-h-[44px]">
+            <ArrowLeft size={16} /> {pick(lang, "Kembali ke daftar", "Back to list", "Kembali ke senarai")}
+          </button>
+          {showAdd ? (
+            <div className="flex flex-col gap-4 max-w-[780px]">
       <div style={{ background: COLORS.card, borderColor: COLORS.line }} className="border rounded-xl p-4 flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <p style={{ color: COLORS.ink }} className="text-sm font-medium">{t("importTitle")}</p>
@@ -2202,11 +2262,16 @@ function RosterTab({ roster, role, settings, schedule, onAdd, onSoftDelete, onRe
         </button>
       </div>
 
-      <div className="flex flex-col gap-2">
-        {activeGuards.map((g) => (
-          <GuardCard key={g.id} guard={g} onUpdate={onUpdate} onRequestDelete={() => setPendingDelete(g)} schedule={schedule} role={role} />
-        ))}
-        {activeGuards.length === 0 && <div className="flex flex-col items-center gap-3 py-8"><DotGrid size={56} /><p style={{ color: COLORS.inkSoft }} className="text-sm text-center uppercase tracking-widest font-light">{t("noPersonnelYet")}</p></div>}
+            </div>
+          ) : selected ? (
+            <GuardCard key={selected.id} guard={selected} onUpdate={onUpdate} onRequestDelete={() => setPendingDelete(selected)} schedule={schedule} role={role} />
+          ) : (
+            <div className="hidden lg:flex flex-col items-center justify-center gap-3 h-full min-h-[320px]">
+              <DotGrid size={56} />
+              <p style={{ color: COLORS.inkSoft }} className="text-sm uppercase tracking-widest font-light text-center">{pick(lang, "Pilih nama untuk melihat biodata", "Select a name to see the biodata", "Pilih nama untuk melihat biodata")}</p>
+            </div>
+          )}
+        </section>
       </div>
 
       <div className="border-t pt-3" style={{ borderColor: COLORS.line }}>
@@ -2254,6 +2319,7 @@ function RosterTab({ roster, role, settings, schedule, onAdd, onSoftDelete, onRe
           onCancel={() => setPendingDelete(null)}
           onConfirm={async (reason) => {
             await onSoftDelete(pendingDelete.id, reason, role);
+            setSelectedId(null);
             setPendingDelete(null);
           }}
         />
@@ -2368,10 +2434,58 @@ function DeleteGuardModal({ guard, role, settings, onCancel, onConfirm }) {
   );
 }
 
-function FileAttachment({ storageKey, fileName, fileSize, onUploaded, onRemoved, accept, folderName }) {
+const driveThumb = (id, w = 200) => `https://drive.google.com/thumbnail?id=${id}&sz=w${w}`;
+const photoCache = new Map(); // guardId -> Drive file id, remembered for this session
+
+// Peek window for a stored file. Download is a button inside it, only when needed.
+function FilePreview({ storageKey, fileId, fileName, onClose }) {
+  const { lang } = useContext(LangContext);
+  const [data, setData] = useState(null); // stored metadata: older records / local mode
+  const [loading, setLoading] = useState(!fileId);
+  useEffect(() => {
+    if (fileId || !storageKey) return;
+    let cancelled = false;
+    loadShared(storageKey, null).then((d) => { if (!cancelled) { setData(d); setLoading(false); } });
+    return () => { cancelled = true; };
+  }, [storageKey, fileId]);
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const id = fileId || data?.driveFileId;
+  function doDownload() {
+    if (data) downloadStoredFile(data);
+    else if (id) window.open(`https://drive.google.com/uc?export=download&id=${id}`, "_blank", "noopener");
+  }
+  let body;
+  if (loading) body = <p style={{ color: COLORS.inkSoft }} className="text-sm">{pick(lang, "Memuat…", "Loading…", "Memuatkan…")}</p>;
+  else if (id) body = <iframe title={fileName || "preview"} src={`https://drive.google.com/file/d/${id}/preview`} className="w-full h-full border-0 bg-white" />;
+  else if (data?.base64 && data.mimeType?.startsWith("image/")) body = <img alt="" src={`data:${data.mimeType};base64,${data.base64}`} className="max-w-full max-h-full object-contain" />;
+  else if (data?.base64 && data.mimeType === "application/pdf") body = <iframe title={fileName || "preview"} src={`data:application/pdf;base64,${data.base64}`} className="w-full h-full border-0 bg-white" />;
+  else body = <p style={{ color: COLORS.inkSoft }} className="text-sm px-4 text-center">{pick(lang, "Pratinjau tidak tersedia. Gunakan tombol Unduh.", "No preview available. Use the Download button.", "Pratonton tidak tersedia. Gunakan butang Muat turun.")}</p>;
+  return (
+    <div className="no-print fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-6" style={{ background: "rgba(35,31,32,.6)" }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: COLORS.card }} className="w-full max-w-5xl h-[90vh] rounded-lg flex flex-col overflow-hidden">
+        <div style={{ borderColor: COLORS.line }} className="flex items-center gap-2 px-3 py-2 border-b">
+          <span style={{ color: COLORS.ink }} className="text-sm font-medium truncate flex-1 min-w-0">{fileName}</span>
+          <button onClick={doDownload} style={{ background: COLORS.green, color: COLORS.ink }} className="rounded-lg px-3 text-xs font-bold flex items-center gap-1.5 min-h-[40px]">
+            <Download size={14} /> {pick(lang, "Unduh", "Download", "Muat turun")}
+          </button>
+          <button onClick={onClose} aria-label="Close" style={{ color: COLORS.ink }} className="eco-flat p-2"><X size={18} /></button>
+        </div>
+        <div style={{ background: "#F4F4F4" }} className="flex-1 min-h-0 flex items-center justify-center">{body}</div>
+      </div>
+    </div>
+  );
+}
+
+function FileAttachment({ storageKey, fileName, fileSize, fileId, onUploaded, onRemoved, accept, folderName }) {
   const t = useT();
+  const { lang } = useContext(LangContext);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
+  const [peek, setPeek] = useState(false);
 
   async function handleChange(e) {
     const file = e.target.files?.[0];
@@ -2381,16 +2495,11 @@ function FileAttachment({ storageKey, fileName, fileSize, onUploaded, onRemoved,
     const res = await uploadFileToStorage(file, storageKey, folderName);
     setUploading(false);
     if (res.ok) {
-      onUploaded({ fileName: res.fileName || file.name, size: res.size ?? file.size });
+      onUploaded({ fileName: res.fileName || file.name, size: res.size ?? file.size, fileId: res.fileId || null });
     } else if (res.error === "too-large") {
       setError(t("fileTooLarge"));
     }
     e.target.value = "";
-  }
-
-  async function handleDownload() {
-    const data = await loadShared(storageKey, null);
-    downloadStoredFile(data);
   }
 
   async function handleRemove() {
@@ -2400,11 +2509,13 @@ function FileAttachment({ storageKey, fileName, fileSize, onUploaded, onRemoved,
 
   if (fileName) {
     return (
-      <div style={{ borderColor: COLORS.line }} className="border rounded-lg px-2.5 py-2 flex items-center gap-2 text-xs">
-        <Paperclip size={12} color={COLORS.inkSoft} className="flex-shrink-0" />
-        <span style={{ color: COLORS.ink }} className="truncate flex-1">{fileName}{fileSize != null && <span style={{ color: COLORS.inkSoft }}> ({formatFileSize(fileSize)})</span>}</span>
-        <button onClick={handleDownload} style={{ color: COLORS.amberDeep }} className="flex-shrink-0 p-1"><Download size={13} /></button>
-        <button onClick={handleRemove} style={{ color: COLORS.red }} className="flex-shrink-0 p-1"><X size={13} /></button>
+      <div style={{ borderColor: COLORS.line }} className="border rounded-lg px-2.5 py-1.5 flex items-center gap-2 text-xs">
+        <button onClick={() => setPeek(true)} title={pick(lang, "Lihat", "Preview", "Pratonton")} style={{ color: COLORS.ink }} className="eco-flat flex items-center gap-2 flex-1 min-w-0 text-left py-1 hover:underline">
+          <Eye size={13} color={COLORS.green} className="flex-shrink-0" />
+          <span className="truncate">{fileName}{fileSize != null && <span style={{ color: COLORS.inkSoft }}> ({formatFileSize(fileSize)})</span>}</span>
+        </button>
+        <button onClick={handleRemove} style={{ color: COLORS.red }} className="eco-flat flex-shrink-0 p-1"><X size={13} /></button>
+        {peek && <FilePreview storageKey={storageKey} fileId={fileId} fileName={fileName} onClose={() => setPeek(false)} />}
       </div>
     );
   }
@@ -2421,68 +2532,82 @@ function FileAttachment({ storageKey, fileName, fileSize, onUploaded, onRemoved,
   );
 }
 
-function GuardPhoto({ guardId, hasPhoto, onChanged, folderName }) {
+// Photo shows straight from the Drive file id kept on the guard record (no extra server call),
+// and appears at once after choosing a file. Click it for a large preview.
+function GuardPhoto({ guardId, hasPhoto, photoFileId, onChanged, folderName }) {
   const t = useT();
-  const [photoUrl, setPhotoUrl] = useState(null);
-  const [fallbackUrl, setFallbackUrl] = useState("");
-  const [photoFailed, setPhotoFailed] = useState(false);
+  const [fileId, setFileId] = useState(photoFileId || photoCache.get(guardId) || "");
+  const [legacyUrl, setLegacyUrl] = useState(null); // base64 from local mode
+  const [localUrl, setLocalUrl] = useState(null);   // instant preview of the file just chosen
+  const [failed, setFailed] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
+  const [peek, setPeek] = useState(false);
 
   useEffect(() => {
+    setFileId(photoFileId || photoCache.get(guardId) || "");
+    setLegacyUrl(null); setLocalUrl(null); setFailed(false);
+  }, [guardId, photoFileId]);
+
+  // Older records have no photoFileId: look it up once, remember it, and save it on the guard.
+  useEffect(() => {
+    if (!hasPhoto || fileId || legacyUrl) return;
     let cancelled = false;
-    if (hasPhoto) {
-      loadShared(`photo:${guardId}`, null).then((data) => {
-        if (cancelled || !data) return;
-        // Google no longer serves uc?export=view reliably inside <img>; the thumbnail link works for
-        // "anyone with the link" files. The old link is kept as a fallback (see onError below).
-        if (data.driveFileId) { setFallbackUrl(data.driveViewUrl || ""); setPhotoUrl(`https://drive.google.com/thumbnail?id=${data.driveFileId}&sz=w400`); }
-        else if (data.driveViewUrl) setPhotoUrl(data.driveViewUrl);
-        else if (data.base64) setPhotoUrl(`data:${data.mimeType};base64,${data.base64}`);
-      });
-    } else {
-      setPhotoUrl(null);
-    }
+    loadShared(`photo:${guardId}`, null).then((data) => {
+      if (cancelled || !data) return;
+      if (data.driveFileId) { photoCache.set(guardId, data.driveFileId); setFileId(data.driveFileId); onChanged(true, data.driveFileId); }
+      else if (data.base64) setLegacyUrl(`data:${data.mimeType};base64,${data.base64}`);
+    });
     return () => { cancelled = true; };
-  }, [guardId, hasPhoto]);
+  }, [guardId, hasPhoto, fileId, legacyUrl]);
 
   async function handleChange(e) {
     const file = e.target.files?.[0];
     if (!file) return;
     setError("");
+    setLocalUrl(URL.createObjectURL(file));
+    setFailed(false);
     setUploading(true);
     const res = await uploadFileToStorage(file, `photo:${guardId}`, folderName);
     setUploading(false);
     if (res.ok) {
-      setPhotoFailed(false);
-      onChanged(true);
-    } else if (res.error === "too-large") {
-      setError(t("fileTooLarge"));
+      if (res.fileId) { photoCache.set(guardId, res.fileId); setFileId(res.fileId); }
+      onChanged(true, res.fileId || null);
+    } else {
+      setLocalUrl(null);
+      setError(res.error === "too-large" ? t("fileTooLarge") : "");
     }
     e.target.value = "";
   }
 
+  const src = localUrl || (fileId ? driveThumb(fileId, 300) : legacyUrl);
+  const hasImg = !!src && !failed;
   return (
     <div className="flex items-center gap-3">
-      <div style={{ background: COLORS.paper, borderColor: COLORS.line }} className="w-16 h-16 rounded-xl border overflow-hidden flex items-center justify-center flex-shrink-0">
-        {photoUrl && !photoFailed ? <img src={photoUrl} alt="" className="w-full h-full object-cover" onError={() => { if (fallbackUrl && photoUrl !== fallbackUrl) { setPhotoUrl(fallbackUrl); setFallbackUrl(""); } else setPhotoFailed(true); }} /> : <Camera size={20} color={COLORS.inkSoft} />}
-      </div>
+      <button
+        type="button"
+        onClick={() => { if (fileId) setPeek(true); }}
+        style={{ background: COLORS.paper, borderColor: COLORS.line, cursor: fileId ? "zoom-in" : "default" }}
+        className="eco-flat w-24 h-24 rounded-xl border overflow-hidden flex items-center justify-center flex-shrink-0"
+      >
+        {hasImg ? <img src={src} alt="" className="w-full h-full object-cover" onError={() => setFailed(true)} /> : <Camera size={22} color={COLORS.inkSoft} />}
+      </button>
       <div className="flex flex-col gap-1">
-        <label style={{ borderColor: COLORS.amberDeep, color: COLORS.amberDeep }} className="border rounded-lg px-3 py-1.5 text-xs font-medium flex items-center gap-1.5 cursor-pointer w-fit min-h-[36px]">
+        <label style={{ borderColor: COLORS.ink, color: COLORS.ink }} className="border rounded-lg px-3 py-1.5 text-xs font-medium flex items-center gap-1.5 cursor-pointer w-fit min-h-[36px]">
           <Camera size={12} />
-          {uploading ? t("uploading") : (photoUrl ? t("changePhoto") : t("uploadPhoto"))}
+          {uploading ? t("uploading") : (hasImg || hasPhoto ? t("changePhoto") : t("uploadPhoto"))}
           <input type="file" accept="image/*" onChange={handleChange} className="hidden" disabled={uploading} />
         </label>
-        {!photoUrl && !uploading && <p style={{ color: COLORS.inkSoft }} className="text-[10px]">{t("noPhoto")}</p>}
+        {!hasImg && !hasPhoto && !uploading && <p style={{ color: COLORS.inkSoft }} className="text-[10px]">{t("noPhoto")}</p>}
         {error && <p style={{ color: COLORS.red }} className="text-[10px]">{error}</p>}
       </div>
+      {peek && fileId && <FilePreview fileId={fileId} fileName="Photo" onClose={() => setPeek(false)} />}
     </div>
   );
 }
 
 function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
   const t = useT();
-  const [expanded, setExpanded] = useState(false);
   const [newCert, setNewCert] = useState({ name: "", number: "", issued: "", expiry: "", notes: "" });
   const [newCertFile, setNewCertFile] = useState(null);
   const [certBusy, setCertBusy] = useState(false);
@@ -2538,6 +2663,7 @@ function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
       if (!res.ok) { setCertErr(res.error === "too-large" ? t("fileTooLarge") : pick(lang, "Unggah gagal, coba lagi.", "Upload failed, try again.", "Muat naik gagal, cuba lagi.")); return; }
       cert.fileName = res.fileName || newCertFile.name;
       cert.fileSize = res.size ?? newCertFile.size;
+      cert.fileId = res.fileId || null;
     }
     onUpdate(guard.id, { certificates: [...certificates, cert] });
     setNewCert({ name: "", number: "", issued: "", expiry: "", notes: "" });
@@ -2549,32 +2675,28 @@ function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
   }
 
   return (
-    <div style={{ background: COLORS.card, borderColor: COLORS.line }} className="border rounded-xl p-3 flex flex-col gap-2">
-      <div className="flex items-center justify-between gap-2">
-        <button onClick={() => setExpanded((v) => !v)} className="flex items-center gap-2 flex-1 text-left min-w-0 py-1.5 min-h-[38px]">
-          {expanded ? <ChevronUp size={14} color={COLORS.inkSoft} /> : <ChevronDown size={14} color={COLORS.inkSoft} />}
-          <span style={{ color: COLORS.ink }} className="text-sm font-medium truncate">{guard.name}</span>
-          <span style={{ color: COLORS.inkSoft }} className="text-xs whitespace-nowrap">{guard.jabatan}</span>
-          {issues.length > 0 ? (
-            <span style={{ borderColor: COLORS.line, color: COLORS.ink }} className="border text-[11px] font-medium rounded-full px-2 py-0.5 whitespace-nowrap inline-flex items-center gap-1.5"><i style={{ background: COLORS.amber }} className="inline-block w-2 h-2 rounded-full" />
-              {pick(lang, `${issues.length} kurang`, `${issues.length} missing`, `${issues.length} kurang`)}
+    <div style={{ background: COLORS.card, borderColor: COLORS.line }} className="border rounded-xl p-4 lg:p-6 flex flex-col gap-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 style={{ color: COLORS.ink }} className="text-xl font-medium truncate">{guard.name}</h2>
+          <p style={{ color: COLORS.inkSoft }} className="text-sm">{[guard.jabatan, guard.company, guard.regu].filter(Boolean).join(" · ")}</p>
+          <div className="flex items-center gap-2 mt-2 flex-wrap">
+            <span style={{ borderColor: COLORS.line, color: COLORS.ink }} className="border text-[11px] font-medium rounded-full px-2 py-0.5 whitespace-nowrap inline-flex items-center gap-1.5">
+              <i style={{ background: issues.length > 0 ? COLORS.amber : COLORS.green }} className="inline-block w-2 h-2 rounded-full" />
+              {issues.length > 0 ? pick(lang, `${issues.length} kurang`, `${issues.length} missing`, `${issues.length} kurang`) : pick(lang, "Lengkap", "Complete", "Lengkap")}
             </span>
-          ) : (
-            <span style={{ borderColor: COLORS.line, color: COLORS.ink }} className="border text-[11px] font-medium rounded-full px-2 py-0.5 whitespace-nowrap inline-flex items-center gap-1.5"><i style={{ background: COLORS.green }} className="inline-block w-2 h-2 rounded-full" />
-              {pick(lang, "Lengkap", "Complete", "Lengkap")}
-            </span>
-          )}
-          {(hasExpired || hasExpiringSoon) && (
-            <AlertTriangle size={13} color={hasExpired ? COLORS.red : COLORS.amberDeep} title={hasExpired ? t("certExpired") : t("certExpiringSoon")} />
-          )}
-        </button>
-        <button onClick={onRequestDelete} style={{ color: COLORS.red }} className="p-2 -m-1 flex-shrink-0"><Trash2 size={16} /></button>
+            {(hasExpired || hasExpiringSoon) && (
+              <span style={{ color: COLORS.ink }} className="text-xs flex items-center gap-1"><AlertTriangle size={13} color={hasExpired ? COLORS.red : COLORS.ink} /> {hasExpired ? t("certExpired") : t("certExpiringSoon")}</span>
+            )}
+          </div>
+        </div>
+        <button onClick={onRequestDelete} title={t("confirmDeleteBtn")} style={{ color: COLORS.red }} className="eco-flat p-2 -m-1 flex-shrink-0"><Trash2 size={18} /></button>
       </div>
 
-      {expanded && (
-        <div className="flex flex-col gap-3 pt-1">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-x-10 gap-y-5 items-start">
+        <div className="flex flex-col gap-4 min-w-0">
           <div className="flex items-start justify-between gap-3 flex-wrap">
-            <GuardPhoto guardId={guard.id} folderName={guard.name} hasPhoto={!!guard.hasPhoto} onChanged={(v) => onUpdate(guard.id, { hasPhoto: v })} />
+            <GuardPhoto guardId={guard.id} folderName={guard.name} hasPhoto={!!guard.hasPhoto} photoFileId={guard.photoFileId || ""} onChanged={(v, fid) => onUpdate(guard.id, fid ? { hasPhoto: v, photoFileId: fid } : { hasPhoto: v })} />
             <div style={{ background: COLORS.paper, borderColor: COLORS.line }} className="border rounded-lg px-3 py-2 flex flex-col items-center min-w-[90px]">
               <span style={{ color: COLORS.inkSoft }} className="text-[10px] uppercase tracking-wide">{t("todayShiftTitle")}</span>
               <span style={{ color: todayShift ? COLORS.amberDeep : COLORS.inkSoft }} className="text-lg font-bold">{todayShift || "—"}</span>
@@ -2633,6 +2755,8 @@ function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
             </div>
           </div>
 
+        </div>
+        <div className="flex flex-col gap-4 min-w-0">
           <MandatoryDocs guard={guard} onUpdate={onUpdate} />
 
           <div className="border-t pt-2" style={{ borderColor: COLORS.line }}>
@@ -2699,8 +2823,9 @@ function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
                       storageKey={`certfile:${c.id}`}
                       fileName={c.fileName}
                       fileSize={c.fileSize}
-                      onUploaded={({ fileName, size }) => updateCert(c.id, { fileName, fileSize: size })}
-                      onRemoved={() => updateCert(c.id, { fileName: null, fileSize: null })}
+                      fileId={c.fileId}
+                      onUploaded={({ fileName, size, fileId }) => updateCert(c.id, { fileName, fileSize: size, fileId })}
+                      onRemoved={() => updateCert(c.id, { fileName: null, fileSize: null, fileId: null })}
                     />
                   </div>
                 );
@@ -2731,7 +2856,7 @@ function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
             {certErr && <p style={{ color: COLORS.red }} className="text-xs mt-1">{certErr}</p>}
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -2797,8 +2922,9 @@ function MandatoryDocs({ guard, onUpdate }) {
                     folderName={guard.name}
                     fileName={d.fileName}
                     fileSize={d.fileSize}
-                    onUploaded={({ fileName, size }) => setDoc(req.key, { fileName, fileSize: size })}
-                    onRemoved={() => setDoc(req.key, { fileName: null, fileSize: null })}
+                    fileId={d.fileId}
+                    onUploaded={({ fileName, size, fileId }) => setDoc(req.key, { fileName, fileSize: size, fileId })}
+                    onRemoved={() => setDoc(req.key, { fileName: null, fileSize: null, fileId: null })}
                   />
                 </>
               )}

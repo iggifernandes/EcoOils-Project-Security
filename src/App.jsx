@@ -251,7 +251,7 @@ const SOS_ROSTER = [
    Until that's set, everything falls back to browser localStorage — fine for
    solo testing on one device, but NOT shared across guards' phones. */
 
-export const APP_VERSION = "1.3.3";
+export const APP_VERSION = "1.3.4";
 export const APP_DATE = "2026-10-28";
 // Phase 1 = guard database + documents only. Guard log-in/out, shift roster and
 // timesheet printing stay in the code but are hidden from guards and Danru;
@@ -2085,7 +2085,7 @@ function ManagerView({ roster, activeRoster, entries, settings, schedule, onAddG
         </div>
 
         <div className="flex flex-wrap gap-x-5">
-          {[["roster", t("tabRoster")], ["schedule", t("tabSchedule")], ["settings", t("tabSettings")]].map(([id, label]) => (
+          {[["roster", t("tabRoster")], ["settings", t("tabSettings")]].map(([id, label]) => (
             <button
               key={id}
               onClick={() => setTab(id)}
@@ -2098,10 +2098,6 @@ function ManagerView({ roster, activeRoster, entries, settings, schedule, onAddG
 
         {tab === "roster" && (
           <RosterTab roster={roster} role="manager" settings={settings} schedule={schedule} onAdd={onAddGuard} onSoftDelete={onSoftDeleteGuard} onRestore={onRestoreGuard} onUpdate={onUpdateGuard} onImportRoster={onImportRoster} />
-        )}
-
-        {tab === "schedule" && (
-          <ScheduleGrid roster={activeRoster} schedule={schedule} onSetCell={onSetScheduleCell} />
         )}
 
         {tab === "settings" && <SettingsTab settings={settings} onUpdate={onUpdateSettings} />}
@@ -2655,8 +2651,6 @@ function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
   }
 
   const now = new Date();
-  const todayKey = dateKey(now.getFullYear(), now.getMonth(), now.getDate());
-  const todayShift = schedule?.[guard.id]?.[todayKey] || "";
 
   // Pick the file here; on "Add" it is uploaded straight to the guard's Drive folder.
   async function addCertificate() {
@@ -2708,11 +2702,6 @@ function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
         <div className="flex flex-col gap-4 min-w-0">
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <GuardPhoto guardId={guard.id} folderName={guard.name} hasPhoto={!!guard.hasPhoto} photoFileId={guard.photoFileId || ""} onChanged={(v, fid) => onUpdate(guard.id, fid ? { hasPhoto: v, photoFileId: fid } : { hasPhoto: v })} />
-            <div style={{ background: COLORS.paper, borderColor: COLORS.line }} className="border rounded-lg px-3 py-2 flex flex-col items-center min-w-[90px]">
-              <span style={{ color: COLORS.inkSoft }} className="text-[10px] uppercase tracking-wide">{t("todayShiftTitle")}</span>
-              <span style={{ color: todayShift ? COLORS.amberDeep : COLORS.inkSoft }} className="text-lg font-bold">{todayShift || "—"}</span>
-              {!todayShift && <span style={{ color: COLORS.inkSoft }} className="text-[10px]">{t("noShiftToday")}</span>}
-            </div>
           </div>
 
           <div>

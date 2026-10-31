@@ -100,3 +100,9 @@ header.eh .eh-l button.on,header.eh .eh-l button.active,header.eh .eh-l button[a
 @media(max-width:420px){header.eh .eh-l button{min-width:40px}}
 .eco-lang button.on{font-weight:600}
 @media print{header.eh{display:none!important}}
+
+/* compact desktop: less dead space above the content */
+@media (min-width: 1024px) {
+  .eco-title { padding: 10px 0 6px; font-size: 18px; }
+  .eco-tab { padding: 6px 0 4px; }
+}

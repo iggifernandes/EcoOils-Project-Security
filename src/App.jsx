@@ -251,7 +251,7 @@ const SOS_ROSTER = [
    Until that's set, everything falls back to browser localStorage — fine for
    solo testing on one device, but NOT shared across guards' phones. */
 
-export const APP_VERSION = "1.3.4";
+export const APP_VERSION = "1.3.5";
 export const APP_DATE = "2026-10-28";
 // Phase 1 = guard database + documents only. Guard log-in/out, shift roster and
 // timesheet printing stay in the code but are hidden from guards and Danru;
@@ -2031,7 +2031,7 @@ function DanruView({ roster, activeRoster, entries, settings, schedule, onAddGua
   const [tab, setTab] = useState("roster"); // roster | docs
   const { lang } = useContext(LangContext);
   return (
-    <div className="min-h-screen px-4 lg:px-8 py-4 max-w-[1700px] mx-auto flex flex-col gap-4">
+    <div className="px-4 lg:px-6 py-2 lg:py-1 max-w-[1900px] mx-auto flex flex-col gap-2 lg:gap-1">
       <div>
       <div className="flex items-end justify-between gap-3">
         <h1 className="eco-title">{t("danruHeader")}</h1>
@@ -2071,8 +2071,8 @@ function ManagerView({ roster, activeRoster, entries, settings, schedule, onAddG
   const [tab, setTab] = useState("roster"); // roster | schedule | settings (Print / Verify hidden: timesheets live in the Patroli app)
 
   return (
-    <div className="min-h-screen">
-      <div className="no-print px-4 lg:px-8 py-4 max-w-[1700px] mx-auto flex flex-col gap-4">
+    <div>
+      <div className="no-print px-4 lg:px-6 py-2 lg:py-1 max-w-[1900px] mx-auto flex flex-col gap-2 lg:gap-1">
         <div>
         <div className="flex items-end justify-between gap-3">
           <h1 className="eco-title">{t("manager")}</h1>
@@ -2208,8 +2208,8 @@ function RosterTab({ roster, role, settings, schedule, onAdd, onSoftDelete, onRe
   const detailOpen = !!selected || showAdd;
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="lg:grid lg:grid-cols-[340px_minmax(0,1fr)] lg:gap-6 lg:h-[calc(100vh-250px)] lg:min-h-[520px]">
+    <div className="flex flex-col gap-2">
+      <div className="lg:grid lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-4 lg:h-[calc(100dvh-240px)] lg:min-h-[480px]">
         <aside className={(detailOpen ? "hidden " : "flex ") + "lg:flex flex-col gap-3 min-h-0"}>
           <div className="flex gap-2">
             <label style={{ borderColor: COLORS.line }} className="border rounded-lg flex items-center gap-2 px-3 flex-1 min-w-0">
@@ -2525,7 +2525,7 @@ function FileAttachment({ storageKey, fileName, fileSize, fileId, onUploaded, on
 
   return (
     <div className="flex flex-col gap-1">
-      <label style={{ borderColor: COLORS.line, color: COLORS.inkSoft }} className="border rounded-lg px-2.5 py-2 text-xs flex items-center justify-center gap-1.5 cursor-pointer min-h-[38px]">
+      <label style={{ borderColor: COLORS.line, color: COLORS.inkSoft }} className="border rounded-lg px-2.5 py-1 text-xs flex items-center justify-center gap-1.5 cursor-pointer min-h-[32px]">
         <Paperclip size={12} />
         {uploading ? t("uploading") : t("uploadFile")}
         <input type="file" accept={accept} onChange={handleChange} className="hidden" disabled={uploading} />
@@ -2537,7 +2537,7 @@ function FileAttachment({ storageKey, fileName, fileSize, fileId, onUploaded, on
 
 // Photo shows straight from the Drive file id kept on the guard record (no extra server call),
 // and appears at once after choosing a file. Click it for a large preview.
-function GuardPhoto({ guardId, hasPhoto, photoFileId, onChanged, folderName }) {
+function GuardPhoto({ guardId, hasPhoto, photoFileId, onChanged, folderName , large}) {
   const t = useT();
   const [fileId, setFileId] = useState(photoFileId || photoCache.get(guardId) || "");
   const [legacyUrl, setLegacyUrl] = useState(null); // base64 from local mode
@@ -2583,15 +2583,15 @@ function GuardPhoto({ guardId, hasPhoto, photoFileId, onChanged, folderName }) {
     e.target.value = "";
   }
 
-  const src = localUrl || (fileId ? driveThumb(fileId, 300) : legacyUrl);
+  const src = localUrl || (fileId ? driveThumb(fileId, large ? 600 : 300) : legacyUrl);
   const hasImg = !!src && !failed;
   return (
-    <div className="flex items-center gap-3">
+    <div className={large ? "flex flex-col gap-2" : "flex items-center gap-3"}>
       <button
         type="button"
         onClick={() => { if (fileId) setPeek(true); }}
         style={{ background: COLORS.paper, borderColor: COLORS.line, cursor: fileId ? "zoom-in" : "default" }}
-        className="eco-flat w-24 h-24 rounded-xl border overflow-hidden flex items-center justify-center flex-shrink-0"
+        className={"eco-flat border overflow-hidden flex items-center justify-center flex-shrink-0 " + (large ? "w-full max-w-[220px] aspect-[4/5] max-h-[30vh] rounded-lg" : "w-24 h-24 rounded-xl")}
       >
         {hasImg ? <img src={src} alt="" className="w-full h-full object-cover" onError={() => setFailed(true)} /> : <Camera size={22} color={COLORS.inkSoft} />}
       </button>
@@ -2677,12 +2677,14 @@ function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
   }
 
   return (
-    <div style={{ background: COLORS.card, borderColor: COLORS.line }} className="border rounded-xl p-4 lg:p-6 flex flex-col gap-5">
-      <div className="flex items-start justify-between gap-3">
+    <div style={{ background: COLORS.card, borderColor: COLORS.line }} className="border rounded-xl p-3 lg:p-4 flex flex-col gap-3 lg:h-full lg:overflow-hidden">
+      <div className="flex items-start justify-between gap-3 flex-shrink-0">
         <div className="min-w-0">
-          <h2 style={{ color: COLORS.ink }} className="text-xl font-medium truncate">{guard.name}</h2>
-          <p style={{ color: COLORS.inkSoft }} className="text-sm">{[guard.jabatan, guard.company, guard.regu].filter(Boolean).join(" · ")}</p>
-          <div className="flex items-center gap-2 mt-2 flex-wrap">
+          <div className="flex items-baseline gap-3 min-w-0 flex-wrap">
+            <h2 style={{ color: COLORS.ink }} className="text-lg font-medium truncate">{guard.name}</h2>
+            <p style={{ color: COLORS.inkSoft }} className="text-sm">{[guard.jabatan, guard.company, guard.regu].filter(Boolean).join(" · ")}</p>
+          </div>
+          <div className="flex items-center gap-2 mt-1 flex-wrap">
             <span style={{ borderColor: COLORS.line, color: COLORS.ink }} className="border text-[11px] font-medium rounded-full px-2 py-0.5 whitespace-nowrap inline-flex items-center gap-1.5">
               <i style={{ background: issues.length > 0 ? COLORS.amber : COLORS.green }} className="inline-block w-2 h-2 rounded-full" />
               {issues.length > 0 ? pick(lang, `${issues.length} kurang`, `${issues.length} missing`, `${issues.length} kurang`) : pick(lang, "Lengkap", "Complete", "Lengkap")}
@@ -2691,22 +2693,20 @@ function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
               <span style={{ color: COLORS.ink }} className="text-xs flex items-center gap-1"><AlertTriangle size={13} color={COLORS.ink} /> {soonDocs.map((x) => pick(lang, x.req.id, x.req.en, x.req.ms).split(" (")[0]).join(", ")} {pick(lang, "segera kadaluarsa (<3 bulan)", "expiring within 3 months", "hampir tamat (<3 bulan)")}</span>
             )}
             {(hasExpired || hasExpiringSoon) && (
-              <span style={{ color: COLORS.ink }} className="text-xs flex items-center gap-1"><AlertTriangle size={13} color={hasExpired ? COLORS.red : COLORS.ink} /> {hasExpired ? t("certExpired") : t("certExpiringSoon")}</span>
+              <span style={{ color: COLORS.ink }} className="text-xs flex items-center gap-1"><AlertTriangle size={13} color={hasExpired ? COLORS.red : COLORS.ink} /> {certificates.filter((c) => c.expiry && (hasExpired ? c.expiry < today : c.expiry >= today && c.expiry <= in30)).map((c) => c.name).join(", ")} {hasExpired ? t("certExpired") : t("certExpiringSoon")}</span>
             )}
           </div>
         </div>
         <button onClick={onRequestDelete} title={t("confirmDeleteBtn")} style={{ color: COLORS.red }} className="eco-flat p-2 -m-1 flex-shrink-0"><Trash2 size={18} /></button>
       </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-x-10 gap-y-5 items-start">
-        <div className="flex flex-col gap-4 min-w-0">
-          <div className="flex items-start justify-between gap-3 flex-wrap">
-            <GuardPhoto guardId={guard.id} folderName={guard.name} hasPhoto={!!guard.hasPhoto} photoFileId={guard.photoFileId || ""} onChanged={(v, fid) => onUpdate(guard.id, fid ? { hasPhoto: v, photoFileId: fid } : { hasPhoto: v })} />
-          </div>
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(190px,0.75fr)_minmax(0,1.1fr)_minmax(0,1.5fr)] gap-x-4 gap-y-4 items-start lg:flex-1 lg:min-h-0">
+        <div className="flex flex-col gap-3 min-w-0 lg:h-full lg:overflow-y-auto lg:pr-1">
+          <GuardPhoto large guardId={guard.id} folderName={guard.name} hasPhoto={!!guard.hasPhoto} photoFileId={guard.photoFileId || ""} onChanged={(v, fid) => onUpdate(guard.id, fid ? { hasPhoto: v, photoFileId: fid } : { hasPhoto: v })} />
 
           <div>
             <p style={{ color: COLORS.inkSoft }} className="text-[10px] uppercase tracking-wide mb-1">{t("basicInfoTitle")}</p>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-1 text-xs">
+            <div className="grid grid-cols-2 lg:grid-cols-1 min-[1700px]:!grid-cols-2 gap-x-3 gap-y-0 text-xs">
               <EditableField value={guard.name} onChange={(v) => onUpdate(guard.id, { name: v })} label={t("fieldName")} />
               <EditableField value={guard.jabatan} onChange={(v) => onUpdate(guard.id, { jabatan: v })} label={t("fieldJabatan")} />
               <EditableField value={guard.regu || ""} onChange={(v) => onUpdate(guard.id, { regu: v })} label={t("fieldRegu")} />
@@ -2732,7 +2732,9 @@ function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
             </div>
           </div>
 
-          <div className="border-t pt-2" style={{ borderColor: COLORS.line }}>
+        </div>
+        <div className="flex flex-col gap-3 min-w-0 lg:h-full lg:overflow-y-auto lg:pr-1">
+          <div className="border-t lg:border-t-0 pt-2 lg:pt-0" style={{ borderColor: COLORS.line }}>
             <p style={{ color: COLORS.ink }} className="text-xs font-medium mb-1.5">{t("bioTitle")}</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1 text-xs">
               <EditableField value={bio.ktp || ""} onChange={(v) => updateBio("ktp", v)} label={t("fieldKtp")} />
@@ -2754,10 +2756,6 @@ function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
               <EditableField value={bio.experience || ""} onChange={(v) => updateBio("experience", v)} label={t("fieldExperience")} />
             </div>
           </div>
-
-        </div>
-        <div className="flex flex-col gap-4 min-w-0">
-          <MandatoryDocs guard={guard} onUpdate={onUpdate} />
 
           <div className="border-t pt-2" style={{ borderColor: COLORS.line }}>
             <p style={{ color: COLORS.ink }} className="text-xs font-medium mb-1.5 flex items-center gap-1.5"><AlertTriangle size={13} color={COLORS.red} /> {t("warningsTitle")}</p>
@@ -2856,6 +2854,9 @@ function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
             {certErr && <p style={{ color: COLORS.red }} className="text-xs mt-1">{certErr}</p>}
           </div>
         </div>
+        <div className="flex flex-col gap-3 min-w-0 lg:h-full lg:overflow-y-auto lg:pr-1">
+          <MandatoryDocs guard={guard} onUpdate={onUpdate} />
+        </div>
       </div>
     </div>
   );
@@ -2875,7 +2876,7 @@ function MandatoryDocs({ guard, onUpdate }) {
       <p style={{ color: COLORS.ink }} className="text-xs font-medium mb-1.5 flex items-center gap-1.5">
         <ShieldAlert size={13} color={COLORS.amberDeep} /> {L("Dokumen wajib", "Mandatory documents", "Dokumen wajib")}
       </p>
-      <div className="flex flex-col gap-2">
+      <div className="grid grid-cols-1 min-[1700px]:grid-cols-2 gap-2 items-start">
         {DOC_REQUIREMENTS.map((req) => {
           const st = docStatus(guard, req);
           const d = docs[req.key] || {};
@@ -2896,7 +2897,7 @@ function MandatoryDocs({ guard, onUpdate }) {
                       {req.hasLevel && (
                         <label className="flex flex-col">
                           <span style={{ color: COLORS.inkSoft }} className="text-[10px]">{L("Tingkat", "Level", "Tahap")}</span>
-                          <select value={d.level || ""} onChange={(e) => setDoc(req.key, { level: e.target.value })} style={{ borderColor: COLORS.line }} className="border rounded px-2 py-2 text-base sm:text-xs min-h-[38px]">
+                          <select value={d.level || ""} onChange={(e) => setDoc(req.key, { level: e.target.value })} style={{ borderColor: COLORS.line }} className="border rounded px-2 py-2 text-base sm:text-xs min-h-[32px]">
                             <option value="">—</option>
                             {levels.map((l) => <option key={l} value={l}>{l}</option>)}
                           </select>
@@ -2906,13 +2907,13 @@ function MandatoryDocs({ guard, onUpdate }) {
                       {req.dated && (
                         <label className="flex flex-col">
                           <span style={{ color: COLORS.inkSoft }} className="text-[10px]">{L("Tanggal terbit", "Issue date", "Tarikh dikeluarkan")}</span>
-                          <input type="date" value={d.issued || ""} onChange={(e) => setDoc(req.key, { issued: e.target.value })} style={{ borderColor: COLORS.line }} className="border rounded px-2 py-2 text-base sm:text-xs min-h-[38px]" />
+                          <input type="date" value={d.issued || ""} onChange={(e) => setDoc(req.key, { issued: e.target.value })} style={{ borderColor: COLORS.line }} className="border rounded px-2 py-1 text-base sm:text-xs min-h-[32px]" />
                         </label>
                       )}
                       {req.dated && (
                         <label className="flex flex-col">
                           <span style={{ color: COLORS.inkSoft }} className="text-[10px]">{L("Berlaku sampai", "Valid until", "Sah sehingga")}{req.validMonths ? ` (${L("otomatis", "auto", "automatik")} +${req.validMonths}${L(" bln", " mo", " bln")})` : ""}</span>
-                          <input type="date" value={d.expiry || until || ""} onChange={(e) => setDoc(req.key, { expiry: e.target.value })} style={{ borderColor: COLORS.line }} className="border rounded px-2 py-2 text-base sm:text-xs min-h-[38px]" />
+                          <input type="date" value={d.expiry || until || ""} onChange={(e) => setDoc(req.key, { expiry: e.target.value })} style={{ borderColor: COLORS.line }} className="border rounded px-2 py-1 text-base sm:text-xs min-h-[32px]" />
                         </label>
                       )}
                     </div>
@@ -2994,7 +2995,7 @@ function EditableField({ value, onChange, label }) {
         onBlur={commit}
         onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
         style={{ color: COLORS.ink }}
-        className="bg-transparent border-b border-transparent hover:border-gray-300 focus:border-gray-400 text-base sm:text-sm py-1.5 outline-none"
+        className="bg-transparent border-b border-transparent hover:border-gray-300 focus:border-gray-400 text-base sm:text-sm py-1 outline-none"
       />
     </label>
   );

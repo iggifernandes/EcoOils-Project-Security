@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useContext, createContext } from "react";
 import ECO_LOGO from "./ecoLogo.js";
-import { Shield, Plus, Trash2, Printer, LogOut, Lock, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Clock, Check, X, UserPlus, Settings, ArrowLeft, MapPin, MapPinOff, FileSpreadsheet, CalendarDays, AlertTriangle, Award, Link2, Users, Camera, Download, ShieldAlert, Paperclip, Search, Eye } from "lucide-react";
+import { Shield, Plus, Trash2, Printer, LogOut, Lock, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Clock, Check, X, UserPlus, Settings, ArrowLeft, MapPin, MapPinOff, FileSpreadsheet, CalendarDays, AlertTriangle, Award, Link2, Users, Camera, Download, ShieldAlert, Paperclip, Search, Eye, ZoomIn, ZoomOut, Save } from "lucide-react";
 // xlsx is large (~400 kB): loaded only when an Excel export is requested.
 const loadXLSX = () => import("xlsx");
 
@@ -251,7 +251,7 @@ const SOS_ROSTER = [
    Until that's set, everything falls back to browser localStorage — fine for
    solo testing on one device, but NOT shared across guards' phones. */
 
-export const APP_VERSION = "1.3.7";
+export const APP_VERSION = "1.3.8";
 export const APP_DATE = "2026-10-28";
 // Phase 1 = guard database + documents only. Guard log-in/out, shift roster and
 // timesheet printing stay in the code but are hidden from guards and Danru;
@@ -594,6 +594,7 @@ const COLORS = {
 /* ---------- language / i18n ---------- */
 
 const LangContext = createContext({ lang: "id", setLang: () => {} });
+const SaveContext = createContext({ saving: false, lastSaved: 0, saveFailed: false, saveNow: () => {} });
 
 const STRINGS = {
   id: {
@@ -1162,6 +1163,8 @@ export default function SecurityTimesheetApp() {
   const [pinInput, setPinInput] = useState("");
   const [pinError, setPinError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [lastSaved, setLastSaved] = useState(0);
+  const [saveFailed, setSaveFailed] = useState(false);
   const [lang, setLang] = useState("id");
   const [schedule, setSchedule] = useState({});
 
@@ -1212,7 +1215,9 @@ export default function SecurityTimesheetApp() {
   const flushRoster = useCallback(async () => {
     clearTimeout(saveTimer.current);
     saveTimer.current = null;
-    await saveShared("roster", rosterRef.current);
+    const ok = await saveShared("roster", rosterRef.current);
+    setSaveFailed(!ok);
+    if (ok) setLastSaved(Date.now());
     setSaving(false);
   }, []);
   const persistRoster = useCallback(async (next) => {
@@ -1358,6 +1363,7 @@ export default function SecurityTimesheetApp() {
 
   return (
     <LangContext.Provider value={{ lang, setLang }}>
+    <SaveContext.Provider value={{ saving, lastSaved, saveFailed, saveNow: flushRoster }}>
     <div className="eco-app" style={{ minHeight: "100vh" }}>
       <div className="eco-dots no-print" aria-hidden="true" />
       <style>{`
@@ -1540,6 +1546,7 @@ export default function SecurityTimesheetApp() {
         />
       )}
     </div>
+    </SaveContext.Provider>
     </LangContext.Provider>
   );
 }
@@ -2533,10 +2540,37 @@ function FileAttachment({ storageKey, fileName, fileSize, fileId, onUploaded, on
   );
 }
 
+function PhotoViewer({ fileId, name, onClose }) {
+  const { lang } = useContext(LangContext);
+  const [zoom, setZoom] = useState(1);
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); if (e.key === "+") setZoom((z) => Math.min(5, z + 0.5)); if (e.key === "-") setZoom((z) => Math.max(1, z - 0.5)); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const btn = { background: COLORS.card, borderColor: COLORS.line, color: COLORS.ink };
+  return (
+    <div className="no-print fixed inset-0 z-[70] flex flex-col" style={{ background: "rgba(35,31,32,.85)" }} onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-2 px-3 py-2">
+        <span className="text-sm font-medium truncate flex-1 min-w-0" style={{ color: "#fff" }}>{name}</span>
+        <button onClick={() => setZoom((z) => Math.max(1, z - 0.5))} style={btn} className="eco-flat border rounded-lg w-10 h-10 inline-flex items-center justify-center" aria-label="Zoom out"><ZoomOut size={18} /></button>
+        <button onClick={() => setZoom(1)} style={btn} className="eco-flat border rounded-lg px-2 h-10 text-xs font-medium min-w-[52px]">{Math.round(zoom * 100)}%</button>
+        <button onClick={() => setZoom((z) => Math.min(5, z + 0.5))} style={btn} className="eco-flat border rounded-lg w-10 h-10 inline-flex items-center justify-center" aria-label="Zoom in"><ZoomIn size={18} /></button>
+        <a href={`https://drive.google.com/uc?export=download&id=${fileId}`} target="_blank" rel="noopener noreferrer" style={{ background: COLORS.green, color: COLORS.ink }} className="rounded-lg px-3 h-10 text-xs font-bold inline-flex items-center gap-1.5"><Download size={14} /> {pick(lang, "Simpan foto", "Save photo", "Simpan gambar")}</a>
+        <button onClick={onClose} aria-label="Close" style={btn} className="eco-flat border rounded-lg w-10 h-10 inline-flex items-center justify-center"><X size={18} /></button>
+      </div>
+      <div className="flex-1 min-h-0 overflow-auto flex" onClick={onClose} onWheel={(e) => { if (e.ctrlKey) { e.preventDefault(); setZoom((z) => Math.min(5, Math.max(1, z - e.deltaY / 200))); } }}>
+        <img onClick={(e) => { e.stopPropagation(); setZoom((z) => (z >= 3 ? 1 : z + 1)); }} alt={name} src={driveThumb(fileId, 1600)} style={{ width: `${zoom * 100}%`, maxWidth: "none", height: zoom === 1 ? "100%" : "auto", objectFit: "contain", margin: "auto", cursor: zoom >= 3 ? "zoom-out" : "zoom-in" }} />
+      </div>
+    </div>
+  );
+}
+
 // Photo shows straight from the Drive file id kept on the guard record (no extra server call),
 // and appears at once after choosing a file. Click it for a large preview.
 function GuardPhoto({ guardId, hasPhoto, photoFileId, onChanged, folderName , large}) {
   const t = useT();
+  const { lang } = useContext(LangContext);
   const [fileId, setFileId] = useState(photoFileId || photoCache.get(guardId) || "");
   const [legacyUrl, setLegacyUrl] = useState(null); // base64 from local mode
   const [localUrl, setLocalUrl] = useState(null);   // instant preview of the file just chosen
@@ -2599,10 +2633,16 @@ function GuardPhoto({ guardId, hasPhoto, photoFileId, onChanged, folderName , la
           {uploading ? t("uploading") : (hasImg || hasPhoto ? t("changePhoto") : t("uploadPhoto"))}
           <input type="file" accept="image/*" onChange={handleChange} className="hidden" disabled={uploading} />
         </label>
+        {fileId && (
+          <div className="flex gap-1">
+            <button type="button" onClick={() => setPeek(true)} style={{ borderColor: COLORS.line, color: COLORS.ink }} className="eco-flat border rounded-lg px-2.5 h-9 text-xs font-medium inline-flex items-center gap-1.5"><ZoomIn size={14} /> Zoom</button>
+            <a href={`https://drive.google.com/uc?export=download&id=${fileId}`} target="_blank" rel="noopener noreferrer" style={{ borderColor: COLORS.line, color: COLORS.ink }} className="border rounded-lg px-2.5 h-9 text-xs font-medium inline-flex items-center gap-1.5"><Download size={14} /> {pick(lang, "Simpan", "Save", "Simpan")}</a>
+          </div>
+        )}
         {!hasImg && !hasPhoto && !uploading && <p style={{ color: COLORS.inkSoft }} className="text-[10px]">{t("noPhoto")}</p>}
         {error && <p style={{ color: COLORS.red }} className="text-[10px]">{error}</p>}
       </div>
-      {peek && fileId && <FilePreview fileId={fileId} fileName="Photo" onClose={() => setPeek(false)} />}
+      {peek && fileId && <PhotoViewer fileId={fileId} name={folderName || "Photo"} onClose={() => setPeek(false)} />}
     </div>
   );
 }
@@ -2614,6 +2654,7 @@ function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
   const [certBusy, setCertBusy] = useState(false);
   const [certErr, setCertErr] = useState("");
   const { lang } = useContext(LangContext);
+  const sv = useContext(SaveContext);
   const issues = guardDocIssues(guard);
   const soonDocs = guardDocSoon(guard);
   const certificates = guard.certificates || [];
@@ -2696,15 +2737,21 @@ function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
             )}
           </div>
         </div>
-        <button onClick={onRequestDelete} title={t("confirmDeleteBtn")} style={{ color: COLORS.red }} className="eco-flat p-2 -m-1 flex-shrink-0"><Trash2 size={18} /></button>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          <span style={{ color: sv.saveFailed ? COLORS.red : COLORS.inkSoft }} className="text-[11px] hidden sm:inline">
+            {sv.saving ? pick(lang, "Menyimpan…", "Saving…", "Menyimpan…") : sv.saveFailed ? pick(lang, "Gagal menyimpan", "Not saved — retry", "Gagal simpan") : sv.lastSaved ? `✓ ${pick(lang, "Tersimpan", "Saved", "Disimpan")} ${new Date(sv.lastSaved).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : pick(lang, "Ubah data lalu Simpan", "Edit data, then Save", "Ubah data kemudian Simpan")}
+          </span>
+          <button onClick={() => sv.saveNow()} style={{ background: COLORS.green, color: COLORS.ink }} className="eco-flat rounded-lg px-3 h-9 text-xs font-bold inline-flex items-center gap-1.5"><Save size={14} /> {pick(lang, "Simpan", "Save", "Simpan")}</button>
+          <button onClick={onRequestDelete} title={t("confirmDeleteBtn")} style={{ color: COLORS.red }} className="eco-flat p-2 -m-1"><Trash2 size={18} /></button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(190px,0.75fr)_minmax(0,1.1fr)_minmax(0,1.5fr)] gap-x-4 gap-y-4 items-start lg:flex-1 lg:min-h-0">
         <div className="flex flex-col gap-3 min-w-0 lg:h-full lg:overflow-y-auto lg:pr-1">
           <GuardPhoto large guardId={guard.id} folderName={guard.name} hasPhoto={!!guard.hasPhoto} photoFileId={guard.photoFileId || ""} onChanged={(v, fid) => onUpdate(guard.id, fid ? { hasPhoto: v, photoFileId: fid } : { hasPhoto: v })} />
 
-          <div>
-            <p style={{ color: COLORS.inkSoft }} className="text-[10px] uppercase tracking-wide mb-1">{t("basicInfoTitle")}</p>
+          <details className="group border-t" style={{ borderColor: COLORS.line }} open>
+            <summary className="flex items-center gap-2 text-xs cursor-pointer list-none py-1.5 select-none" style={{ color: COLORS.ink }}><ChevronRight size={13} className="transition-transform group-open:rotate-90 flex-shrink-0" /><span className="font-medium">{t("basicInfoTitle")}</span><span style={{ color: COLORS.inkSoft }} className="truncate font-normal">{[guard.npk, guard.phone].filter(Boolean).join(" · ")}</span></summary>
             <div className="grid grid-cols-2 lg:grid-cols-1 min-[1700px]:!grid-cols-2 gap-x-3 gap-y-0 text-xs">
               <EditableField value={guard.name} onChange={(v) => onUpdate(guard.id, { name: v })} label={t("fieldName")} />
               <EditableField value={guard.jabatan} onChange={(v) => onUpdate(guard.id, { jabatan: v })} label={t("fieldJabatan")} />
@@ -2729,12 +2776,12 @@ function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
                 />
               </label>
             </div>
-          </div>
+          </details>
 
         </div>
         <div className="flex flex-col gap-3 min-w-0 lg:h-full lg:overflow-y-auto lg:pr-1">
-          <div className="border-t lg:border-t-0 pt-2 lg:pt-0" style={{ borderColor: COLORS.line }}>
-            <p style={{ color: COLORS.ink }} className="text-xs font-medium mb-1.5">{t("bioTitle")}</p>
+          <details className="group border-t" style={{ borderColor: COLORS.line }} open>
+            <summary className="flex items-center gap-2 text-xs cursor-pointer list-none py-1.5 select-none" style={{ color: COLORS.ink }}><ChevronRight size={13} className="transition-transform group-open:rotate-90 flex-shrink-0" /><span className="font-medium">{t("bioTitle")}</span><span style={{ color: COLORS.inkSoft }} className="truncate font-normal">{[bio.ktp, bio.bloodType].filter(Boolean).join(" · ")}</span></summary>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1 text-xs">
               <EditableField value={bio.ktp || ""} onChange={(v) => updateBio("ktp", v)} label={t("fieldKtp")} />
               <EditableField value={bio.bloodType || ""} onChange={(v) => updateBio("bloodType", v)} label={t("fieldBloodType")} />
@@ -2746,15 +2793,15 @@ function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
             <div className="mt-1">
               <EditableField value={bio.address || ""} onChange={(v) => updateBio("address", v)} label={t("fieldAddress")} />
             </div>
-          </div>
+          </details>
 
-          <div className="border-t pt-2" style={{ borderColor: COLORS.line }}>
-            <p style={{ color: COLORS.ink }} className="text-xs font-medium mb-1.5">{t("employmentTitle")}</p>
+          <details className="group border-t" style={{ borderColor: COLORS.line }}>
+            <summary className="flex items-center gap-2 text-xs cursor-pointer list-none py-1.5 select-none" style={{ color: COLORS.ink }}><ChevronRight size={13} className="transition-transform group-open:rotate-90 flex-shrink-0" /><span className="font-medium">{t("employmentTitle")}</span><span style={{ color: COLORS.inkSoft }} className="truncate font-normal">{[bio.dateOfJoining, bio.experience].filter(Boolean).join(" · ")}</span></summary>
             <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
               <EditableField value={bio.dateOfJoining || ""} onChange={(v) => updateBio("dateOfJoining", v)} label={t("fieldDateOfJoining")} />
               <EditableField value={bio.experience || ""} onChange={(v) => updateBio("experience", v)} label={t("fieldExperience")} />
             </div>
-          </div>
+          </details>
 
           <div className="border-t pt-2" style={{ borderColor: COLORS.line }}>
             <div className="flex items-center gap-2 text-xs">
@@ -2782,8 +2829,8 @@ function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
             )}
           </div>
 
-          <div className="border-t pt-2" style={{ borderColor: COLORS.line }}>
-            <p style={{ color: COLORS.ink }} className="text-xs font-medium mb-1.5 flex items-center gap-1.5"><Award size={13} color={COLORS.amberDeep} /> {t("certificatesTitle")}</p>
+          <details className="group border-t" style={{ borderColor: COLORS.line }}>
+            <summary className="flex items-center gap-2 text-xs cursor-pointer list-none py-1.5 select-none" style={{ color: COLORS.ink }}><ChevronRight size={13} className="transition-transform group-open:rotate-90 flex-shrink-0" /><span className="font-medium inline-flex items-center gap-1.5"><Award size={13} color={COLORS.amberDeep} /> {t("certificatesTitle")}</span><span style={{ color: COLORS.inkSoft }} className="truncate font-normal">{certificates.length ? `(${certificates.length})` : pick(lang, "Belum ada", "None", "Tiada")}{hasExpired ? " ⚠" : ""}</span></summary>
 
             {certificates.length === 0 && <p style={{ color: COLORS.inkSoft }} className="text-xs mb-2">{t("noCertificates")}</p>}
 
@@ -2850,7 +2897,7 @@ function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
               <Plus size={13} /> {certBusy ? t("uploading") : t("addCertificate")}
             </button>
             {certErr && <p style={{ color: COLORS.red }} className="text-xs mt-1">{certErr}</p>}
-          </div>
+          </details>
         </div>
         <div className="flex flex-col gap-3 min-w-0 lg:h-full lg:overflow-y-auto lg:pr-1">
           <MandatoryDocs guard={guard} onUpdate={onUpdate} />

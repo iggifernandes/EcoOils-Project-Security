@@ -4,6 +4,42 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>EcoOils Security</title>
+    <script>
+      // Self-recovery: if the app's script cannot be loaded (a stored copy of this page points to files from an
+      // older deploy that no longer exist), clear the stored copies once and reload fresh.
+      (function () {
+        var KEY = "eco-recover";
+        function box(msg) {
+          var r = document.getElementById("root");
+          if (!r || r.firstChild) return;
+          r.innerHTML = '<div style="font-family:Jost,system-ui,Arial,sans-serif;padding:32px 20px;max-width:520px;margin:0 auto;color:#231f20">' +
+            '<h1 style="font-weight:300;letter-spacing:.14em;text-transform:uppercase;color:#6e6b6c;font-size:20px;margin:0 0 12px">EcoOils Security</h1>' +
+            '<p style="font-size:16px">' + msg + '</p>' +
+            '<button onclick="location.replace(location.pathname+\'?r=\'+Date.now())" style="background:#44a276;color:#231f20;font-weight:700;border:0;border-radius:8px;padding:12px 24px;font-size:16px;cursor:pointer">Reload</button></div>';
+        }
+        function recover() {
+          var tried = false;
+          try { tried = sessionStorage.getItem(KEY) === "1"; sessionStorage.setItem(KEY, "1"); } catch (e) {}
+          if (tried) { box("The app could not start. Check your internet connection, then reload."); return; }
+          var jobs = [];
+          try { if (navigator.serviceWorker && navigator.serviceWorker.getRegistrations) jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); })); } catch (e) {}
+          try { if (window.caches && caches.keys) jobs.push(caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); })); } catch (e) {}
+          var go = function () { location.replace(location.pathname + "?r=" + Date.now()); };
+          Promise.all(jobs).then(go, go);
+        }
+        window.addEventListener("error", function (e) {
+          var t = e.target;
+          if (t && t.tagName === "SCRIPT" && t.src && /\/assets\//.test(t.src)) recover();
+        }, true);
+        window.addEventListener("load", function () {
+          setTimeout(function () {
+            var r = document.getElementById("root");
+            if (r && !r.firstChild) recover();
+            else { try { sessionStorage.removeItem(KEY); } catch (e) {} }
+          }, 6000);
+        });
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://drive.google.com" />
     <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin />

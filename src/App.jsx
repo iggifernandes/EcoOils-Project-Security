@@ -251,7 +251,7 @@ const SOS_ROSTER = [
    Until that's set, everything falls back to browser localStorage — fine for
    solo testing on one device, but NOT shared across guards' phones. */
 
-export const APP_VERSION = "1.3.2";
+export const APP_VERSION = "1.3.3";
 export const APP_DATE = "2026-10-28";
 // Phase 1 = guard database + documents only. Guard log-in/out, shift roster and
 // timesheet printing stay in the code but are hidden from guards and Danru;
@@ -289,7 +289,9 @@ function docValidUntil(req, d) {
   return "";
 }
 
-// -> "ok" | "missing" | "expired" | "nodate"
+const WARN_DAYS = 90; // warn at least 3 months before any expiry
+const warnDate = () => new Date(Date.now() + WARN_DAYS * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+// -> "ok" | "soon" | "missing" | "expired" | "nodate"
 function docStatus(guard, req) {
   const today = new Date().toISOString().slice(0, 10);
   if (req.special === "photo") return guard.hasPhoto ? "ok" : "missing";
@@ -298,18 +300,22 @@ function docStatus(guard, req) {
   if (req.validMonths && !d.issued) return "nodate";
   const until = docValidUntil(req, d);
   if (until && until < today) return "expired";
+  if (until && until <= warnDate()) return "soon";
   return "ok";
 }
 
 function guardDocIssues(guard) {
-  return DOC_REQUIREMENTS.map((r) => ({ req: r, status: docStatus(guard, r) })).filter((x) => x.status !== "ok");
+  return DOC_REQUIREMENTS.map((r) => ({ req: r, status: docStatus(guard, r) })).filter((x) => x.status !== "ok" && x.status !== "soon");
+}
+function guardDocSoon(guard) {
+  return DOC_REQUIREMENTS.map((r) => ({ req: r, status: docStatus(guard, r) })).filter((x) => x.status === "soon");
 }
 
 async function exportDocsChecklist(roster, lang) {
   const XLSX = await loadXLSX();
   const L = (a, b, c) => pick(lang, a, b, c);
   const head = [L("Nama", "Name", "Nama"), "NPK", L("Perusahaan", "Company", "Syarikat"), ...DOC_REQUIREMENTS.map((r) => pick(lang, r.id, r.en, r.ms)), L("Kurang", "Missing/Issues", "Kurang/Isu")];
-  const word = { ok: "OK", missing: L("KURANG", "MISSING", "KURANG"), expired: L("KADALUARSA", "EXPIRED", "TAMAT TEMPOH"), nodate: L("TGL KOSONG", "NO DATE", "TIADA TARIKH") };
+  const word = { ok: "OK", missing: L("KURANG", "MISSING", "KURANG"), expired: L("KADALUARSA", "EXPIRED", "TAMAT TEMPOH"), nodate: L("TGL KOSONG", "NO DATE", "TIADA TARIKH"), soon: L("SEGERA HABIS (<3 BLN)", "EXPIRING (<3 MO)", "HAMPIR TAMAT (<3 BLN)") };
   const rows = roster.map((g) => {
     const st = DOC_REQUIREMENTS.map((r) => docStatus(g, r));
     return [g.name, g.npk || "", g.company || "", ...st.map((x) => word[x]), st.filter((x) => x !== "ok").length];
@@ -670,7 +676,7 @@ const STRINGS = {
     certLink: "Link file (OneDrive/Drive)",
     certNotes: "Catatan",
     certExpired: "kadaluarsa",
-    certExpiringSoon: "segera kadaluarsa",
+    certExpiringSoon: "segera kadaluarsa (<3 bulan)",
     openLink: "Buka file",
     bioTitle: "Data Diri",
     basicInfoTitle: "Info Dasar",
@@ -2152,6 +2158,7 @@ function GuardRow({ guard, selected, onClick }) {
   const { lang } = useContext(LangContext);
   const [imgOk, setImgOk] = useState(true);
   const n = guardDocIssues(guard).length;
+  const soonN = guardDocSoon(guard).length;
   const initials = String(guard.name || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
   return (
     <button
@@ -2167,8 +2174,8 @@ function GuardRow({ guard, selected, onClick }) {
         <span style={{ color: COLORS.inkSoft }} className="block text-xs truncate">{[guard.jabatan, guard.company].filter(Boolean).join(" · ") || "—"}</span>
       </span>
       <span style={{ borderColor: COLORS.line, color: COLORS.ink }} className="border text-[11px] font-medium rounded-full px-2 py-0.5 whitespace-nowrap inline-flex items-center gap-1.5 flex-shrink-0">
-        <i style={{ background: n > 0 ? COLORS.amber : COLORS.green }} className="inline-block w-2 h-2 rounded-full" />
-        {n > 0 ? pick(lang, `${n} kurang`, `${n} missing`, `${n} kurang`) : pick(lang, "Lengkap", "Complete", "Lengkap")}
+        <i style={{ background: n > 0 || soonN > 0 ? COLORS.amber : COLORS.green }} className="inline-block w-2 h-2 rounded-full" />
+        {n > 0 ? pick(lang, `${n} kurang`, `${n} missing`, `${n} kurang`) : soonN > 0 ? pick(lang, `${soonN} segera habis`, `${soonN} expiring`, `${soonN} hampir tamat`) : pick(lang, "Lengkap", "Complete", "Lengkap")}
       </span>
     </button>
   );
@@ -2614,10 +2621,11 @@ function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
   const [certErr, setCertErr] = useState("");
   const { lang } = useContext(LangContext);
   const issues = guardDocIssues(guard);
+  const soonDocs = guardDocSoon(guard);
   const certificates = guard.certificates || [];
   const bio = guard.bio || {};
   const today = new Date().toISOString().slice(0, 10);
-  const in30 = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const in30 = warnDate();
   const hasExpired = certificates.some((c) => c.expiry && c.expiry < today);
   const hasExpiringSoon = !hasExpired && certificates.some((c) => c.expiry && c.expiry >= today && c.expiry <= in30);
 
@@ -2685,6 +2693,9 @@ function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
               <i style={{ background: issues.length > 0 ? COLORS.amber : COLORS.green }} className="inline-block w-2 h-2 rounded-full" />
               {issues.length > 0 ? pick(lang, `${issues.length} kurang`, `${issues.length} missing`, `${issues.length} kurang`) : pick(lang, "Lengkap", "Complete", "Lengkap")}
             </span>
+            {soonDocs.length > 0 && (
+              <span style={{ color: COLORS.ink }} className="text-xs flex items-center gap-1"><AlertTriangle size={13} color={COLORS.ink} /> {soonDocs.map((x) => pick(lang, x.req.id, x.req.en, x.req.ms).split(" (")[0]).join(", ")} {pick(lang, "segera kadaluarsa (<3 bulan)", "expiring within 3 months", "hampir tamat (<3 bulan)")}</span>
+            )}
             {(hasExpired || hasExpiringSoon) && (
               <span style={{ color: COLORS.ink }} className="text-xs flex items-center gap-1"><AlertTriangle size={13} color={hasExpired ? COLORS.red : COLORS.ink} /> {hasExpired ? t("certExpired") : t("certExpiringSoon")}</span>
             )}
@@ -2869,7 +2880,7 @@ function MandatoryDocs({ guard, onUpdate }) {
   function setDoc(key, patch) {
     onUpdate(guard.id, { docs: { ...docs, [key]: { ...(docs[key] || {}), ...patch } } });
   }
-  const badge = { ok: [COLORS.green, COLORS.ink, L("OK", "OK", "OK")], missing: [COLORS.amber, COLORS.ink, L("Kurang", "Missing", "Kurang")], expired: [COLORS.ink, COLORS.ink, L("Kadaluarsa", "Expired", "Tamat tempoh")], nodate: [COLORS.amber, COLORS.ink, L("Isi tanggal", "Add date", "Isi tarikh")] };
+  const badge = { ok: [COLORS.green, COLORS.ink, L("OK", "OK", "OK")], missing: [COLORS.amber, COLORS.ink, L("Kurang", "Missing", "Kurang")], expired: [COLORS.ink, COLORS.ink, L("Kadaluarsa", "Expired", "Tamat tempoh")], soon: [COLORS.amber, COLORS.ink, L("Segera habis", "Expiring soon", "Hampir tamat")], nodate: [COLORS.amber, COLORS.ink, L("Isi tanggal", "Add date", "Isi tarikh")] };
   return (
     <div className="border-t pt-2" style={{ borderColor: COLORS.line }}>
       <p style={{ color: COLORS.ink }} className="text-xs font-medium mb-1.5 flex items-center gap-1.5">
@@ -2939,7 +2950,7 @@ function MandatoryDocs({ guard, onUpdate }) {
 function DocsOverview({ roster }) {
   const { lang } = useContext(LangContext);
   const L = (a, b, c) => pick(lang, a, b, c);
-  const sym = { ok: ["✓", COLORS.green], missing: ["✗", COLORS.ink], expired: ["!", COLORS.ink], nodate: ["?", COLORS.inkSoft] };
+  const sym = { ok: ["✓", COLORS.green], missing: ["✗", COLORS.ink], expired: ["!", COLORS.ink], soon: ["⚠", COLORS.ink], nodate: ["?", COLORS.inkSoft] };
   const incomplete = roster.filter((g) => guardDocIssues(g).length > 0).length;
   return (
     <div className="flex flex-col gap-3">

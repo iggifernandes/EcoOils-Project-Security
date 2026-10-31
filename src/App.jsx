@@ -251,7 +251,7 @@ const SOS_ROSTER = [
    Until that's set, everything falls back to browser localStorage — fine for
    solo testing on one device, but NOT shared across guards' phones. */
 
-export const APP_VERSION = "1.3.1";
+export const APP_VERSION = "1.3.2";
 export const APP_DATE = "2026-10-28";
 // Phase 1 = guard database + documents only. Guard log-in/out, shift roster and
 // timesheet printing stay in the code but are hidden from guards and Danru;
@@ -2157,7 +2157,7 @@ function GuardRow({ guard, selected, onClick }) {
     <button
       onClick={onClick}
       style={{ borderColor: selected ? COLORS.green : COLORS.line, background: selected ? "#F1F8F4" : COLORS.card, borderLeftWidth: 4 }}
-      className="eco-flat border rounded-lg px-3 py-2 flex items-center gap-3 text-left w-full"
+      className="eco-flat border rounded-lg px-3 py-2 flex items-center gap-3 text-left w-full flex-shrink-0 min-h-[60px]"
     >
       <span style={{ background: "#F1F1F1", color: COLORS.inkSoft }} className="w-10 h-10 rounded-full overflow-hidden flex items-center justify-center text-xs font-medium flex-shrink-0">
         {guard.photoFileId && imgOk ? <img loading="lazy" src={driveThumb(guard.photoFileId, 96)} alt="" onError={() => setImgOk(false)} className="w-full h-full object-cover" /> : initials}

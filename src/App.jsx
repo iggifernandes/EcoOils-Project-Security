@@ -251,7 +251,7 @@ const SOS_ROSTER = [
    Until that's set, everything falls back to browser localStorage — fine for
    solo testing on one device, but NOT shared across guards' phones. */
 
-export const APP_VERSION = "1.3.5";
+export const APP_VERSION = "1.3.6";
 export const APP_DATE = "2026-10-28";
 // Phase 1 = guard database + documents only. Guard log-in/out, shift roster and
 // timesheet printing stay in the code but are hidden from guards and Danru;
@@ -270,7 +270,6 @@ function addMonths(isoDate, n) {
 // KTA Satpam, Gada training, plus employer-side contract and BPJS records).
 // validMonths: validity counted from the issue date (SKCK = 6 months per Iggy).
 const DOC_REQUIREMENTS = [
-  { key: "photo", id: "Pas foto", en: "Passport photo", ms: "Gambar pasport", special: "photo" },
   { key: "ktp", id: "KTP", en: "KTP (national ID)", ms: "KTP (kad pengenalan)", number: true },
   { key: "ijazah", id: "Ijazah (min. SMA/sederajat)", en: "Diploma (min. senior high)", ms: "Diploma (min. sekolah menengah atas)" },
   { key: "skck", id: "SKCK (berlaku 6 bulan)", en: "Police clearance SKCK (valid 6 months)", ms: "Pelepasan polis SKCK (sah 6 bulan)", dated: true, validMonths: 6, number: true },
@@ -284,6 +283,7 @@ const DOC_REQUIREMENTS = [
 
 function docValidUntil(req, d) {
   if (!d) return "";
+  if (d.noExpiry) return "";
   if (d.expiry) return d.expiry;
   if (req.validMonths && d.issued) return addMonths(d.issued, req.validMonths);
   return "";
@@ -297,6 +297,7 @@ function docStatus(guard, req) {
   if (req.special === "photo") return guard.hasPhoto ? "ok" : "missing";
   const d = (guard.docs || {})[req.key];
   if (!d || !d.fileName) return "missing";
+  if (d.noExpiry) return "ok";
   if (req.validMonths && !d.issued) return "nodate";
   const until = docValidUntil(req, d);
   if (until && until < today) return "expired";
@@ -2169,8 +2170,8 @@ function GuardRow({ guard, selected, onClick }) {
         <span style={{ color: COLORS.ink }} className="block text-sm font-medium truncate">{guard.name}</span>
         <span style={{ color: COLORS.inkSoft }} className="block text-xs truncate">{[guard.jabatan, guard.company].filter(Boolean).join(" · ") || "—"}</span>
       </span>
-      <span style={{ borderColor: COLORS.line, color: COLORS.ink }} className="border text-[11px] font-medium rounded-full px-2 py-0.5 whitespace-nowrap inline-flex items-center gap-1.5 flex-shrink-0">
-        <i style={{ background: n > 0 || soonN > 0 ? COLORS.amber : COLORS.green }} className="inline-block w-2 h-2 rounded-full" />
+      <span style={{ borderColor: n > 0 ? COLORS.red : COLORS.line, color: n > 0 ? COLORS.red : COLORS.ink }} className="border text-[11px] font-medium rounded-full px-2 py-0.5 whitespace-nowrap inline-flex items-center gap-1.5 flex-shrink-0">
+        <i style={{ background: n > 0 ? COLORS.red : soonN > 0 ? COLORS.amber : COLORS.green }} className="inline-block w-2 h-2 rounded-full" />
         {n > 0 ? pick(lang, `${n} kurang`, `${n} missing`, `${n} kurang`) : soonN > 0 ? pick(lang, `${soonN} segera habis`, `${soonN} expiring`, `${soonN} hampir tamat`) : pick(lang, "Lengkap", "Complete", "Lengkap")}
       </span>
     </button>
@@ -2512,19 +2513,16 @@ function FileAttachment({ storageKey, fileName, fileSize, fileId, onUploaded, on
 
   if (fileName) {
     return (
-      <div style={{ borderColor: COLORS.line }} className="border rounded-lg px-2.5 py-1.5 flex items-center gap-2 text-xs">
-        <button onClick={() => setPeek(true)} title={pick(lang, "Lihat", "Preview", "Pratonton")} style={{ color: COLORS.ink }} className="eco-flat flex items-center gap-2 flex-1 min-w-0 text-left py-1 hover:underline">
-          <Eye size={13} color={COLORS.green} className="flex-shrink-0" />
-          <span className="truncate">{fileName}{fileSize != null && <span style={{ color: COLORS.inkSoft }}> ({formatFileSize(fileSize)})</span>}</span>
-        </button>
-        <button onClick={handleRemove} style={{ color: COLORS.red }} className="eco-flat flex-shrink-0 p-1"><X size={13} /></button>
+      <span className="inline-flex items-center gap-1 flex-shrink-0">
+        <button onClick={() => setPeek(true)} title={`${pick(lang, "Lihat", "Preview", "Pratonton")}: ${fileName}${fileSize != null ? ` (${formatFileSize(fileSize)})` : ""}`} aria-label={pick(lang, "Lihat dokumen", "Preview document", "Pratonton dokumen")} style={{ color: COLORS.green, borderColor: COLORS.line }} className="eco-flat border rounded-md w-8 h-8 inline-flex items-center justify-center"><Eye size={15} /></button>
+        <button onClick={handleRemove} title={pick(lang, "Hapus file", "Remove file", "Buang fail")} style={{ color: COLORS.red }} className="eco-flat w-7 h-8 inline-flex items-center justify-center"><X size={14} /></button>
         {peek && <FilePreview storageKey={storageKey} fileId={fileId} fileName={fileName} onClose={() => setPeek(false)} />}
-      </div>
+      </span>
     );
   }
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex flex-col gap-1 flex-shrink-0">
       <label style={{ borderColor: COLORS.line, color: COLORS.inkSoft }} className="border rounded-lg px-2.5 py-1 text-xs flex items-center justify-center gap-1.5 cursor-pointer min-h-[32px]">
         <Paperclip size={12} />
         {uploading ? t("uploading") : t("uploadFile")}
@@ -2611,7 +2609,7 @@ function GuardPhoto({ guardId, hasPhoto, photoFileId, onChanged, folderName , la
 
 function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
   const t = useT();
-  const [newCert, setNewCert] = useState({ name: "", number: "", issued: "", expiry: "", notes: "" });
+  const [newCert, setNewCert] = useState({ name: "", number: "", issued: "", expiry: "", notes: "", noExpiry: false });
   const [newCertFile, setNewCertFile] = useState(null);
   const [certBusy, setCertBusy] = useState(false);
   const [certErr, setCertErr] = useState("");
@@ -2668,7 +2666,7 @@ function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
       cert.fileId = res.fileId || null;
     }
     onUpdate(guard.id, { certificates: [...certificates, cert] });
-    setNewCert({ name: "", number: "", issued: "", expiry: "", notes: "" });
+    setNewCert({ name: "", number: "", issued: "", expiry: "", notes: "", noExpiry: false });
     setNewCertFile(null);
   }
 
@@ -2685,8 +2683,8 @@ function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
             <p style={{ color: COLORS.inkSoft }} className="text-sm">{[guard.jabatan, guard.company, guard.regu].filter(Boolean).join(" · ")}</p>
           </div>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
-            <span style={{ borderColor: COLORS.line, color: COLORS.ink }} className="border text-[11px] font-medium rounded-full px-2 py-0.5 whitespace-nowrap inline-flex items-center gap-1.5">
-              <i style={{ background: issues.length > 0 ? COLORS.amber : COLORS.green }} className="inline-block w-2 h-2 rounded-full" />
+            <span style={{ borderColor: issues.length > 0 ? COLORS.red : COLORS.line, color: issues.length > 0 ? COLORS.red : COLORS.ink }} className="border text-[11px] font-medium rounded-full px-2 py-0.5 whitespace-nowrap inline-flex items-center gap-1.5">
+              <i style={{ background: issues.length > 0 ? COLORS.red : (soonDocs.length > 0 ? COLORS.amber : COLORS.green) }} className="inline-block w-2 h-2 rounded-full" />
               {issues.length > 0 ? pick(lang, `${issues.length} kurang`, `${issues.length} missing`, `${issues.length} kurang`) : pick(lang, "Lengkap", "Complete", "Lengkap")}
             </span>
             {soonDocs.length > 0 && (
@@ -2808,7 +2806,13 @@ function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
                         <p style={{ color: COLORS.ink }} className="font-medium truncate">{c.name}{c.number && ` — ${c.number}`}</p>
-                        {(c.issued || c.expiry) && (
+                        {!c.expiry && !c.noExpiry && (
+                          <label className="flex items-center gap-2 cursor-pointer" style={{ color: COLORS.inkSoft }}>
+                            <input type="checkbox" checked={false} onChange={() => updateCert(c.id, { noExpiry: true })} className="w-4 h-4" style={{ accentColor: COLORS.green }} /> {pick(lang, "Tanpa kadaluarsa", "No expiry", "Tiada tarikh tamat")}
+                          </label>
+                        )}
+                        {c.noExpiry && <label className="flex items-center gap-2 cursor-pointer" style={{ color: COLORS.green }}><input type="checkbox" checked onChange={() => updateCert(c.id, { noExpiry: false })} className="w-4 h-4" style={{ accentColor: COLORS.green }} />{c.issued ? `${c.issued} → ` : ""}✓ {pick(lang, "Tanpa kadaluarsa", "No expiry", "Tiada tarikh tamat")}</label>}
+                        {!c.noExpiry && (c.issued || c.expiry) && (
                           <p style={{ color: expired ? COLORS.red : soon ? COLORS.amberDeep : COLORS.inkSoft }}>
                             {c.issued || "—"} → {c.expiry || "—"} {expired && `(${t("certExpired")})`} {soon && `(${t("certExpiringSoon")})`}
                           </p>
@@ -2839,7 +2843,11 @@ function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
               </label>
               <label className="flex flex-col gap-0.5">
                 <span style={{ color: COLORS.inkSoft }} className="text-[10px]">{t("certExpiry")}</span>
-                <input type="date" value={newCert.expiry} onChange={(e) => setNewCert({ ...newCert, expiry: e.target.value })} style={{ borderColor: COLORS.line }} className="border rounded px-2 py-2 text-base sm:text-xs min-h-[40px] w-full" />
+                <input type="date" disabled={newCert.noExpiry} value={newCert.noExpiry ? "" : newCert.expiry} onChange={(e) => setNewCert({ ...newCert, expiry: e.target.value })} style={{ borderColor: COLORS.line }} className="border rounded px-2 py-2 text-base sm:text-xs min-h-[40px] w-full disabled:opacity-40" />
+              </label>
+              <label className="flex items-center gap-2 text-xs sm:col-span-2 cursor-pointer" style={{ color: COLORS.ink }}>
+                <input type="checkbox" checked={newCert.noExpiry} onChange={(e) => setNewCert({ ...newCert, noExpiry: e.target.checked, expiry: "" })} className="w-4 h-4" style={{ accentColor: COLORS.green }} />
+                ✓ {pick(lang, "Tanpa tanggal kadaluarsa", "No expiry", "Tiada tarikh tamat")}
               </label>
               <label style={{ borderColor: COLORS.line, color: COLORS.inkSoft }} className="border rounded px-2 py-2 text-xs min-h-[40px] sm:col-span-2 flex items-center gap-2 cursor-pointer">
                 <Paperclip size={13} />
@@ -2870,7 +2878,7 @@ function MandatoryDocs({ guard, onUpdate }) {
   function setDoc(key, patch) {
     onUpdate(guard.id, { docs: { ...docs, [key]: { ...(docs[key] || {}), ...patch } } });
   }
-  const badge = { ok: [COLORS.green, COLORS.ink, L("OK", "OK", "OK")], missing: [COLORS.amber, COLORS.ink, L("Kurang", "Missing", "Kurang")], expired: [COLORS.ink, COLORS.ink, L("Kadaluarsa", "Expired", "Tamat tempoh")], soon: [COLORS.amber, COLORS.ink, L("Segera habis", "Expiring soon", "Hampir tamat")], nodate: [COLORS.amber, COLORS.ink, L("Isi tanggal", "Add date", "Isi tarikh")] };
+  const badge = { ok: [COLORS.green, COLORS.ink, ""], missing: [COLORS.red, COLORS.red, L("Kurang", "Missing", "Kurang")], expired: [COLORS.red, COLORS.red, L("Kadaluarsa", "Expired", "Tamat tempoh")], soon: [COLORS.amber, COLORS.ink, L("Segera habis", "Expiring soon", "Hampir tamat")], nodate: [COLORS.amber, COLORS.ink, L("Isi tanggal", "Add date", "Isi tarikh")] };
   return (
     <div className="border-t pt-2" style={{ borderColor: COLORS.line }}>
       <p style={{ color: COLORS.ink }} className="text-xs font-medium mb-1.5 flex items-center gap-1.5">
@@ -2886,7 +2894,18 @@ function MandatoryDocs({ guard, onUpdate }) {
             <div key={req.key} style={{ borderColor: COLORS.line }} className="border rounded-lg p-2 flex flex-col gap-1.5">
               <div className="flex items-center justify-between gap-2">
                 <span style={{ color: COLORS.ink }} className="text-xs font-medium">{pick(lang, req.id, req.en, req.ms)}</span>
-                <span style={{ borderColor: COLORS.line, color: fg }} className="border text-[11px] font-medium rounded-full px-2 py-0.5 inline-flex items-center gap-1.5 whitespace-nowrap"><i style={{ background: bg }} className="inline-block w-2 h-2 rounded-full" />{label}</span>
+                <span className="inline-flex items-center gap-2">
+                  <span style={{ color: fg }} className="text-[11px] font-medium inline-flex items-center gap-1.5 whitespace-nowrap" title={label || L("Sudah diunggah", "Uploaded", "Dimuat naik")}><i style={{ background: bg }} className="inline-block w-2.5 h-2.5 rounded-full" />{label}</span>
+                  <FileAttachment
+                    storageKey={`doc:${guard.id}:${req.key}`}
+                    folderName={guard.name}
+                    fileName={d.fileName}
+                    fileSize={d.fileSize}
+                    fileId={d.fileId}
+                    onUploaded={({ fileName, size, fileId }) => setDoc(req.key, { fileName, fileSize: size, fileId })}
+                    onRemoved={() => setDoc(req.key, { fileName: null, fileSize: null, fileId: null })}
+                  />
+                </span>
               </div>
               {req.special === "photo" ? (
                 <p style={{ color: COLORS.inkSoft }} className="text-[10px]">{L("Unggah di bagian foto di atas.", "Upload in the photo box above.", "Muat naik di kotak gambar di atas.")}</p>
@@ -2913,20 +2932,17 @@ function MandatoryDocs({ guard, onUpdate }) {
                       {req.dated && (
                         <label className="flex flex-col">
                           <span style={{ color: COLORS.inkSoft }} className="text-[10px]">{L("Berlaku sampai", "Valid until", "Sah sehingga")}{req.validMonths ? ` (${L("otomatis", "auto", "automatik")} +${req.validMonths}${L(" bln", " mo", " bln")})` : ""}</span>
-                          <input type="date" value={d.expiry || until || ""} onChange={(e) => setDoc(req.key, { expiry: e.target.value })} style={{ borderColor: COLORS.line }} className="border rounded px-2 py-1 text-base sm:text-xs min-h-[32px]" />
+                          <input type="date" disabled={!!d.noExpiry} value={d.noExpiry ? "" : (d.expiry || until || "")} onChange={(e) => setDoc(req.key, { expiry: e.target.value })} style={{ borderColor: COLORS.line }} className="border rounded px-2 py-1 text-base sm:text-xs min-h-[32px] disabled:opacity-40" />
+                        </label>
+                      )}
+                      {req.dated && (
+                        <label className="flex items-center gap-2 text-xs sm:col-span-2 cursor-pointer" style={{ color: COLORS.ink }}>
+                          <input type="checkbox" checked={!!d.noExpiry} onChange={(e) => setDoc(req.key, { noExpiry: e.target.checked })} className="w-4 h-4" style={{ accentColor: COLORS.green }} />
+                          ✓ {L("Tanpa tanggal kadaluarsa", "No expiry", "Tiada tarikh tamat")}
                         </label>
                       )}
                     </div>
                   )}
-                  <FileAttachment
-                    storageKey={`doc:${guard.id}:${req.key}`}
-                    folderName={guard.name}
-                    fileName={d.fileName}
-                    fileSize={d.fileSize}
-                    fileId={d.fileId}
-                    onUploaded={({ fileName, size, fileId }) => setDoc(req.key, { fileName, fileSize: size, fileId })}
-                    onRemoved={() => setDoc(req.key, { fileName: null, fileSize: null, fileId: null })}
-                  />
                 </>
               )}
             </div>

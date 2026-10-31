@@ -251,7 +251,7 @@ const SOS_ROSTER = [
    Until that's set, everything falls back to browser localStorage — fine for
    solo testing on one device, but NOT shared across guards' phones. */
 
-export const APP_VERSION = "1.3.6";
+export const APP_VERSION = "1.3.7";
 export const APP_DATE = "2026-10-28";
 // Phase 1 = guard database + documents only. Guard log-in/out, shift roster and
 // timesheet printing stay in the code but are hidden from guards and Danru;
@@ -2636,6 +2636,7 @@ function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
   }
 
   const warnings = guard.warnings || [];
+  const [showWarnForm, setShowWarnForm] = useState(false);
   const [newWarning, setNewWarning] = useState({ reason: "", date: new Date().toISOString().slice(0, 10) });
 
   function addWarning() {
@@ -2756,40 +2757,29 @@ function GuardCard({ guard, onUpdate, onRequestDelete, schedule, role }) {
           </div>
 
           <div className="border-t pt-2" style={{ borderColor: COLORS.line }}>
-            <p style={{ color: COLORS.ink }} className="text-xs font-medium mb-1.5 flex items-center gap-1.5"><AlertTriangle size={13} color={COLORS.red} /> {t("warningsTitle")}</p>
-            {warnings.length === 0 && <p style={{ color: COLORS.inkSoft }} className="text-xs mb-2">{t("noWarnings")}</p>}
-            <div className="flex flex-col gap-1.5 mb-2">
-              {warnings.map((w) => (
-                <div key={w.id} style={{ borderColor: COLORS.red }} className="border rounded p-2 flex items-start justify-between gap-2 text-xs">
-                  <div className="min-w-0">
-                    <p style={{ color: COLORS.ink }}>{w.reason}</p>
-                    <p style={{ color: COLORS.inkSoft }}>{w.date} {w.issuedBy && `· ${t("deletedByLabel", w.issuedBy)}`}</p>
+            <div className="flex items-center gap-2 text-xs">
+              <AlertTriangle size={13} color={COLORS.red} className="flex-shrink-0" />
+              <span style={{ color: COLORS.ink }} className="font-medium">{t("warningsTitle")}</span>
+              <span style={{ color: COLORS.inkSoft }}>{warnings.length === 0 ? pick(lang, "Belum ada", "None", "Tiada") : `(${warnings.length})`}</span>
+              <button onClick={() => setShowWarnForm((v) => !v)} title={t("addWarning")} aria-label={t("addWarning")} style={{ borderColor: COLORS.ink, color: COLORS.ink }} className="eco-flat border rounded-md w-7 h-7 inline-flex items-center justify-center ml-auto flex-shrink-0"><Plus size={14} /></button>
+            </div>
+            {warnings.length > 0 && (
+              <div className="flex flex-col gap-1 mt-1.5">
+                {warnings.map((w) => (
+                  <div key={w.id} style={{ borderColor: COLORS.red }} className="border rounded px-2 py-1 flex items-center justify-between gap-2 text-xs">
+                    <span className="min-w-0 truncate" style={{ color: COLORS.ink }}>{w.reason} <span style={{ color: COLORS.inkSoft }}>· {w.date}{w.issuedBy ? ` · ${t("deletedByLabel", w.issuedBy)}` : ""}</span></span>
+                    <button onClick={() => removeWarning(w.id)} style={{ color: COLORS.red }} className="eco-flat flex-shrink-0 p-1"><X size={13} /></button>
                   </div>
-                  <button onClick={() => removeWarning(w.id)} style={{ color: COLORS.red }} className="flex-shrink-0 p-1"><X size={13} /></button>
-                </div>
-              ))}
-            </div>
-            <div className="flex flex-col gap-2">
-              <input
-                placeholder={t("warningReason")}
-                value={newWarning.reason}
-                onChange={(e) => setNewWarning({ ...newWarning, reason: e.target.value })}
-                style={{ borderColor: COLORS.line }}
-                className="border rounded px-2 py-2 text-base sm:text-xs min-h-[40px]"
-              />
-              <div className="flex gap-2">
-                <input
-                  type="date"
-                  value={newWarning.date}
-                  onChange={(e) => setNewWarning({ ...newWarning, date: e.target.value })}
-                  style={{ borderColor: COLORS.line }}
-                  className="border rounded px-2 py-2 text-base sm:text-xs min-h-[40px] flex-1"
-                />
-                <button onClick={addWarning} style={{ borderColor: COLORS.ink, color: COLORS.ink }} className="border rounded-lg px-3 text-xs font-medium min-h-[40px] flex items-center gap-1.5 max-w-full">
-                  <Plus size={13} /> {t("addWarning")}
-                </button>
+                ))}
               </div>
-            </div>
+            )}
+            {showWarnForm && (
+              <div className="flex gap-2 mt-1.5 items-center">
+                <input autoFocus placeholder={t("warningReason")} value={newWarning.reason} onChange={(e) => setNewWarning({ ...newWarning, reason: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") { addWarning(); setShowWarnForm(false); } }} style={{ borderColor: COLORS.line }} className="border rounded px-2 py-1 text-base sm:text-xs min-h-[32px] flex-1 min-w-0" />
+                <input type="date" value={newWarning.date} onChange={(e) => setNewWarning({ ...newWarning, date: e.target.value })} style={{ borderColor: COLORS.line }} className="border rounded px-2 py-1 text-base sm:text-xs min-h-[32px] w-[130px] flex-shrink-0" />
+                <button onClick={() => { addWarning(); setShowWarnForm(false); }} style={{ borderColor: COLORS.ink, color: COLORS.ink }} className="eco-flat border rounded-md w-8 h-8 inline-flex items-center justify-center flex-shrink-0" title={t("addWarning")}><Check size={14} /></button>
+              </div>
+            )}
           </div>
 
           <div className="border-t pt-2" style={{ borderColor: COLORS.line }}>
